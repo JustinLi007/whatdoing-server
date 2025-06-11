@@ -12,6 +12,9 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 
 	r.Get("/", s.HandlerHello)
 
+	r.Get("/users/{userId}", s.handlerUsers.GetUserById)
+	r.Post("/users", s.handlerUsers.CreateUser)
+
 	return r
 }
 
