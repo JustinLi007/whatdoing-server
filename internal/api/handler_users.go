@@ -90,6 +90,8 @@ func (h *handlerUsers) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	utils.SetCookie(w, "whatdoing-test-cookie", "fk you")
+
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"user": createdUser,
 	})
