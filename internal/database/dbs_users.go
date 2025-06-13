@@ -90,8 +90,8 @@ func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
 		}
 	}()
 
-	query := `INSERT INTO users id, email, password_hash
-	VALUE ($1, $2, $3)
+	query := `INSERT INTO users (id, email, password_hash)
+	VALUES ($1, $2, $3)
 	RETURNING id, created_at, updated_at, username, email, password_hash, role;`
 
 	err = tx.QueryRow(
