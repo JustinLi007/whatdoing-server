@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/JustinLi007/whatdoing-server/internal/tokens"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -52,25 +53,26 @@ type User struct {
 type DbsUsers interface {
 	CreateUser(user User) (*User, error)
 	GetUserById(id uuid.UUID) (*User, error)
+	AuthenticateByJwt(jwt *tokens.Jwt) (*User, error)
 }
 
 type PgDbsUsers struct {
 	db DbService
 }
 
-var dbsInstance *PgDbsUsers
+var dbsUsersInstance *PgDbsUsers
 
 func NewDbsUsers(db DbService) DbsUsers {
-	if dbsInstance != nil {
-		return dbsInstance
+	if dbsUsersInstance != nil {
+		return dbsUsersInstance
 	}
 
 	newDbsUsers := &PgDbsUsers{
 		db: db,
 	}
-	dbsInstance = newDbsUsers
+	dbsUsersInstance = newDbsUsers
 
-	return dbsInstance
+	return dbsUsersInstance
 }
 
 func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
@@ -139,6 +141,80 @@ func (d *PgDbsUsers) GetUserById(id uuid.UUID) (*User, error) {
 		&user.Password.Hash,
 		&user.Role,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*User, error) {
+	user := &User{
+		Password: Password{},
+	}
+
+	dbJwt := tokens.Jwt{
+		Token:        &tokens.Token{},
+		RefreshToken: &tokens.Token{},
+	}
+
+	tx, err := d.db.Conn().Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			log.Printf("error: dbsUsers AuthenticateByJwt Rollback: %v", err)
+		}
+	}()
+
+	queryGetJwt := `SELECT * FROM jwt
+	WHERE user_id = $1
+	RETURNING id, created_at, updated_at, token, refresh_token, refresh_token_expiration, scope, user_id;`
+
+	err = tx.QueryRow(
+		queryGetJwt,
+		jwt.UserId,
+	).Scan(
+		&dbJwt.Id,
+		&dbJwt.CreatedAt,
+		&dbJwt.UpdatedAt,
+		&dbJwt.Token.Hash,
+		&dbJwt.RefreshToken.Hash,
+		&dbJwt.RefreshToken.Expiry,
+		&dbJwt.Scope,
+		&dbJwt.UserId,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if !tokens.ValidateHash(dbJwt.Token.Hash, jwt.Token.PlainText) {
+		return nil, errors.New("error: dbsUsers AuthenticateByJwt: failed")
+	}
+
+	queryGetUser := `SELECT * FROM users
+	WHERE id = $1
+	RETURNING id, created_at, updated_at, username, email, password_hash, role;`
+
+	err = tx.QueryRow(
+		queryGetUser,
+		jwt.UserId,
+	).Scan(
+		&user.Id,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.Username,
+		&user.Email,
+		&user.Password.Hash,
+		&user.Role,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit()
 	if err != nil {
 		return nil, err
 	}

@@ -20,19 +20,19 @@ type handlerUsers struct {
 	dbsUsers database.DbsUsers
 }
 
-var handlerInstance *handlerUsers
+var handlerUsersInstance *handlerUsers
 
 func NewHandlerUsers(dbs database.DbsUsers) HandlerUsers {
-	if handlerInstance != nil {
-		return handlerInstance
+	if handlerUsersInstance != nil {
+		return handlerUsersInstance
 	}
 
 	newHandlerUsers := &handlerUsers{
 		dbsUsers: dbs,
 	}
-	handlerInstance = newHandlerUsers
+	handlerUsersInstance = newHandlerUsers
 
-	return handlerInstance
+	return handlerUsersInstance
 }
 
 func (h *handlerUsers) CreateUser(w http.ResponseWriter, r *http.Request) {
