@@ -95,8 +95,7 @@ func (d *PgDbsJwt) UpdateToken(token *tokens.Jwt) error {
 
 	queryGetToken := `SELECT * FROM token
 	WHERE user_id = $1
-	AND hash = $2
-	RETURNING id, created_at, updated_at, token, refresh_token, refresh_token_expiration, scope, user_id;`
+	AND hash = $2`
 
 	err = tx.QueryRow(
 		queryGetToken,

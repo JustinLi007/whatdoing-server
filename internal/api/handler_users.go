@@ -12,8 +12,9 @@ import (
 )
 
 type HandlerUsers interface {
-	CreateUser(w http.ResponseWriter, r *http.Request)
+	SignUp(w http.ResponseWriter, r *http.Request)
 	GetUserById(w http.ResponseWriter, r *http.Request)
+	Login(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerUsers struct {
@@ -35,7 +36,7 @@ func NewHandlerUsers(dbs database.DbsUsers) HandlerUsers {
 	return handlerUsersInstance
 }
 
-func (h *handlerUsers) CreateUser(w http.ResponseWriter, r *http.Request) {
+func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 	type ValidateRequest struct {
 		Email    *string
 		Username *string
@@ -67,7 +68,7 @@ func (h *handlerUsers) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newUser := database.User{
+	newUser := &database.User{
 		Email:    *req.Email,
 		Username: req.Username,
 	}
@@ -90,6 +91,7 @@ func (h *handlerUsers) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: handle jwt here.
 	utils.SetCookie(w, "whatdoing-test-cookie", "fk you")
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
@@ -126,6 +128,67 @@ func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"user": existingUser,
+	})
+}
+
+func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
+	type ValidateRequest struct {
+		Email    *string
+		Password *string
+	}
+
+	var req ValidateRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Printf("error: handler_users Login Decode: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "failed to decode request body.",
+		})
+		return
+	}
+
+	if req.Email == nil {
+		log.Printf("error: handler_users Login: no email")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "missing required credentials",
+		})
+		return
+	}
+	if req.Password == nil {
+		log.Printf("error: handler_users Login: no password")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "missing required credentials",
+		})
+		return
+	}
+
+	newUser := &database.User{
+		Email: *req.Email,
+	}
+
+	err = newUser.Password.Set(*req.Password)
+	if err != nil {
+		log.Printf("error: handler_users Login Set password: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	existingUser, err := h.dbsUsers.GetUserByEmailPassword(newUser)
+	if err != nil {
+		log.Printf("error: handler_users Login dbs.GetUserByEmailPassword: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	// TODO: handle jwt here
+	utils.SetCookie(w, "whatdoing-test-cookie", "fk you")
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"user": existingUser,

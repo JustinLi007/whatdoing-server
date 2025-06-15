@@ -32,6 +32,8 @@ func NewHandlerJwt(dbs database.DbsJwt) HandlerJwt {
 }
 
 func (h *handlerJwt) CreateToken(w http.ResponseWriter, r *http.Request) {
-	err := utils.WriteJson(w, http.StatusOK, utils.Envelope{})
+	err := utils.WriteJson(w, http.StatusNotImplemented, utils.Envelope{
+		"error": "not implemented",
+	})
 	log.Printf("error: handler jwt CreateToken: Write Json: %v", err)
 }

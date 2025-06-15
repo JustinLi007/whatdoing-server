@@ -51,7 +51,8 @@ type User struct {
 }
 
 type DbsUsers interface {
-	CreateUser(user User) (*User, error)
+	CreateUser(user *User) (*User, error)
+	GetUserByEmailPassword(user *User) (*User, error)
 	GetUserById(id uuid.UUID) (*User, error)
 	AuthenticateByJwt(jwt *tokens.Jwt) (*User, error)
 }
@@ -75,9 +76,7 @@ func NewDbsUsers(db DbService) DbsUsers {
 	return dbsUsersInstance
 }
 
-func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
-	log.Printf("dbsUsers CreateUser reached. Not implemented.")
-
+func (d *PgDbsUsers) CreateUser(user *User) (*User, error) {
 	newUser := &User{
 		Password: Password{},
 	}
@@ -92,8 +91,8 @@ func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
 		}
 	}()
 
-	query := `INSERT INTO users (id, email, password_hash)
-	VALUES ($1, $2, $3)
+	query := `INSERT INTO users (id, email, password_hash, username)
+	VALUES ($1, $2, $3, $4)
 	RETURNING id, created_at, updated_at, username, email, password_hash, role;`
 
 	err = tx.QueryRow(
@@ -101,6 +100,7 @@ func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
 		uuid.New(),
 		user.Email,
 		user.Password.Hash,
+		user.Username,
 	).Scan(
 		&newUser.Id,
 		&newUser.CreatedAt,
@@ -122,12 +122,45 @@ func (d *PgDbsUsers) CreateUser(user User) (*User, error) {
 	return newUser, nil
 }
 
+func (d *PgDbsUsers) GetUserByEmailPassword(user *User) (*User, error) {
+	existingUser := &User{}
+
+	query := `SELECT * FROM users
+	WHERE email = $1`
+
+	err := d.db.Conn().QueryRow(
+		query,
+		user.Email,
+	).Scan(
+		&existingUser.Id,
+		&existingUser.CreatedAt,
+		&existingUser.UpdatedAt,
+		&existingUser.Username,
+		&existingUser.Email,
+		&existingUser.Password.Hash,
+		&existingUser.Role,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	passwordMatch, err := existingUser.Password.Validate(user.Password.PlainText)
+	if err != nil {
+		return nil, err
+	}
+
+	if !passwordMatch {
+		return nil, errors.New("error: dbsUsers GetUserByEmailPassword: failed")
+	}
+
+	return existingUser, nil
+}
+
 func (d *PgDbsUsers) GetUserById(id uuid.UUID) (*User, error) {
 	user := &User{}
 
-	query := `SELECT FROM users
-	WHERE id = $1
-	RETURNING id, created_at, updated_at, username, email, password_hash, role;`
+	query := `SELECT * FROM users
+	WHERE id = $1`
 
 	err := d.db.Conn().QueryRow(
 		query,
@@ -170,8 +203,7 @@ func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*User, error) {
 	}()
 
 	queryGetJwt := `SELECT * FROM jwt
-	WHERE user_id = $1
-	RETURNING id, created_at, updated_at, token, refresh_token, refresh_token_expiration, scope, user_id;`
+	WHERE user_id = $1`
 
 	err = tx.QueryRow(
 		queryGetJwt,
@@ -195,8 +227,7 @@ func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*User, error) {
 	}
 
 	queryGetUser := `SELECT * FROM users
-	WHERE id = $1
-	RETURNING id, created_at, updated_at, username, email, password_hash, role;`
+	WHERE id = $1`
 
 	err = tx.QueryRow(
 		queryGetUser,

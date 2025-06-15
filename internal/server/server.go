@@ -8,6 +8,7 @@ import (
 
 	"github.com/JustinLi007/whatdoing-server/internal/api"
 	"github.com/JustinLi007/whatdoing-server/internal/database"
+	"github.com/JustinLi007/whatdoing-server/internal/middleware"
 	"github.com/JustinLi007/whatdoing-server/migrations"
 )
 
@@ -16,6 +17,7 @@ type Server struct {
 	db           database.DbService
 	dbsUsers     database.DbsUsers
 	handlerUsers api.HandlerUsers
+	middleware   *middleware.Middleware
 }
 
 func NewServer() *http.Server {
@@ -32,11 +34,14 @@ func NewServer() *http.Server {
 	dbsUsers := database.NewDbsUsers(db)
 	handlerUsers := api.NewHandlerUsers(dbsUsers)
 
+	middleware := middleware.NewMiddleware()
+
 	newServer := Server{
 		port:         8000,
 		db:           db,
 		dbsUsers:     dbsUsers,
 		handlerUsers: handlerUsers,
+		middleware:   middleware,
 	}
 
 	mux := newServer.RegisterRoutes()
