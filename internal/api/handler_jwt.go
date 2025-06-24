@@ -9,7 +9,7 @@ import (
 )
 
 type HandlerJwt interface {
-	CreateToken(w http.ResponseWriter, r *http.Request)
+	RefreshJwt(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerJwt struct {
@@ -31,7 +31,7 @@ func NewHandlerJwt(dbs database.DbsJwt) HandlerJwt {
 	return handlerJwtInstance
 }
 
-func (h *handlerJwt) CreateToken(w http.ResponseWriter, r *http.Request) {
+func (h *handlerJwt) RefreshJwt(w http.ResponseWriter, r *http.Request) {
 	err := utils.WriteJson(w, http.StatusNotImplemented, utils.Envelope{
 		"error": "not implemented",
 	})

@@ -31,8 +31,12 @@ func NewServer() *http.Server {
 		log.Fatalf("error: Server NewServer MigrateFS: %v", err)
 	}
 
+	// dbs
 	dbsUsers := database.NewDbsUsers(db)
-	handlerUsers := api.NewHandlerUsers(dbsUsers)
+	dbsJwt := database.NewDbsJwt(db)
+
+	// handlers
+	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 
 	middleware := middleware.NewMiddleware()
 

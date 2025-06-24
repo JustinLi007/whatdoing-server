@@ -2,10 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/JustinLi007/whatdoing-server/internal/database"
+	"github.com/JustinLi007/whatdoing-server/internal/tokens"
 	"github.com/JustinLi007/whatdoing-server/internal/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -19,17 +23,19 @@ type HandlerUsers interface {
 
 type handlerUsers struct {
 	dbsUsers database.DbsUsers
+	dbsJwt   database.DbsJwt
 }
 
 var handlerUsersInstance *handlerUsers
 
-func NewHandlerUsers(dbs database.DbsUsers) HandlerUsers {
+func NewHandlerUsers(dbsUsers database.DbsUsers, dbsJwt database.DbsJwt) HandlerUsers {
 	if handlerUsersInstance != nil {
 		return handlerUsersInstance
 	}
 
 	newHandlerUsers := &handlerUsers{
-		dbsUsers: dbs,
+		dbsUsers: dbsUsers,
+		dbsJwt:   dbsJwt,
 	}
 	handlerUsersInstance = newHandlerUsers
 
@@ -39,7 +45,7 @@ func NewHandlerUsers(dbs database.DbsUsers) HandlerUsers {
 func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 	type ValidateRequest struct {
 		Email    *string
-		Username *string
+		Username *string // this is not used by dbsUsers
 		Password *string
 	}
 
@@ -91,15 +97,25 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: handle jwt here.
-	utils.SetCookie(w, "whatdoing-test-cookie", "fk you")
+	token, err := h.dbsJwt.Insert(createdUser.Id, time.Hour*12, time.Hour*24, tokens.ScopeAuthenticate)
+	if err != nil {
+		log.Printf("error: handler_users CreateUser dbs.CreateToken: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
 
+	utils.SetCookie(w, "whatdoing-jwt", token.Token.PlainText)
+	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
+	url := "/home/"
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"user": createdUser,
+		"next": fmt.Sprintf("%s%s", url, createdUser.Id),
 	})
 }
 
 func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
+	// TODO: maybe need middleware to pass shit in
 	userIdStr := chi.URLParam(r, "userId")
 
 	err := uuid.Validate(userIdStr)
@@ -187,10 +203,29 @@ func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: handle jwt here
-	utils.SetCookie(w, "whatdoing-test-cookie", "fk you")
+	token, err := h.dbsJwt.Get(existingUser)
+	if err == nil && time.Now().After(token.RefreshToken.Expiry) {
+		err = errors.New("error: refresh token expired")
+	} else if err == nil {
+		token, err = h.dbsJwt.Update(token)
+	}
 
+	if err != nil {
+		log.Printf("error: handler_users Login dbs.Get: %v", err)
+		token, err = h.dbsJwt.Insert(existingUser.Id, time.Hour*12, time.Hour*24, tokens.ScopeAuthenticate)
+		if err != nil {
+			log.Printf("error: handler_users Login dbs.CreateToken: %v", err)
+			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+				"error": "internal server error",
+			})
+			return
+		}
+	}
+
+	utils.SetCookie(w, "whatdoing-jwt", token.Token.PlainText)
+	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
+	url := "/home/"
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"user": existingUser,
+		"next": fmt.Sprintf("%s%s", url, existingUser.Id),
 	})
 }
