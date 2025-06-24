@@ -7,6 +7,10 @@ import (
 type Middleware struct {
 }
 
+var allowedOrigins = map[string]bool{
+	"http://localhost:5173": true,
+}
+
 var middlewareInstance *Middleware
 
 func NewMiddleware() *Middleware {
@@ -24,7 +28,11 @@ func (m *Middleware) Cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// defer drainBuffer(r.Body)
 
+		origin := r.Header.Get("Origin")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-CSRF-Token")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
