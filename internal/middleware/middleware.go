@@ -1,10 +1,17 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
+
+	"github.com/JustinLi007/whatdoing-server/internal/database"
+	"github.com/JustinLi007/whatdoing-server/internal/tokens"
+	"github.com/JustinLi007/whatdoing-server/internal/utils"
 )
 
 type Middleware struct {
+	dbsUsers database.DbsUsers
+	dbsJwt   database.DbsJwt
 }
 
 var allowedOrigins = map[string]bool{
@@ -13,12 +20,15 @@ var allowedOrigins = map[string]bool{
 
 var middlewareInstance *Middleware
 
-func NewMiddleware() *Middleware {
+func NewMiddleware(dbsUsers database.DbsUsers, dbsJwt database.DbsJwt) *Middleware {
 	if middlewareInstance != nil {
 		return middlewareInstance
 	}
 
-	newMiddleware := &Middleware{}
+	newMiddleware := &Middleware{
+		dbsUsers: dbsUsers,
+		dbsJwt:   dbsJwt,
+	}
 	middlewareInstance = newMiddleware
 
 	return middlewareInstance
@@ -42,6 +52,49 @@ func (m *Middleware) Cors(next http.Handler) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (m *Middleware) RequireJwt(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = utils.SetUser(r, database.AnonymousUser)
+
+		cookie, err := r.Cookie("whatdoing-jwt")
+		if err != nil {
+			log.Printf("error: middleware LoggedIn: jwt cookie: %v", err)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		jwtValidate := &tokens.Jwt{
+			Token: &tokens.Token{
+				PlainText: cookie.Value,
+			},
+		}
+		user, err := m.dbsUsers.AuthenticateByJwt(jwtValidate)
+		if err != nil {
+			log.Printf("error: middleware LoggedIn: AuthenticateByJwt: %v", err)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		r = utils.SetUser(r, user)
+		next.ServeHTTP(w, r)
+		return
+	})
+}
+
+func (m *Middleware) RequireUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := utils.GetUser(r)
+		if user == database.AnonymousUser {
+			log.Printf("error: middleware RequireUser")
+			utils.WriteJson(w, http.StatusUnauthorized, utils.Envelope{
+				"error": "must be logged in",
+			})
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

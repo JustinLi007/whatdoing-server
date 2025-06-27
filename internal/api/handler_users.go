@@ -115,7 +115,6 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
-	// TODO: maybe need middleware to pass shit in
 	userIdStr := chi.URLParam(r, "userId")
 
 	err := uuid.Validate(userIdStr)

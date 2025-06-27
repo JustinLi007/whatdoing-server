@@ -63,16 +63,21 @@ func GenerateToken(ttl time.Duration) (*Token, error) {
 	}
 
 	token.PlainText = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)
-	hash := sha256.Sum256([]byte(token.PlainText))
+	hash := HashFromPlainText(token.PlainText)
 	token.Hash = hash[:]
 
 	return token, nil
 }
 
 func ValidateHash(secret []byte, plainText string) bool {
-	hash := sha256.Sum256([]byte(plainText))
+	hash := HashFromPlainText(plainText)
 	if len(secret) == len(hash) && subtle.ConstantTimeCompare(secret, hash[:]) == 1 {
 		return true
 	}
 	return false
+}
+
+func HashFromPlainText(plainText string) [32]byte {
+	hash := sha256.Sum256([]byte(plainText))
+	return hash
 }

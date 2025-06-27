@@ -11,7 +11,12 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 	r.Post("/users/login", s.handlerUsers.Login)
 	r.Post("/users/signup", s.handlerUsers.SignUp)
 
-	r.Get("/users/{userId}", s.handlerUsers.GetUserById)
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Use(s.middleware.RequireUser)
+
+		r.Get("/users/{userId}", s.handlerUsers.GetUserById)
+	})
 
 	return r
 }

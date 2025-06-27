@@ -42,8 +42,8 @@ func (p *Password) Validate(plainTextPassword string) (bool, error) {
 
 type User struct {
 	Id        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"-"`
+	UpdatedAt time.Time `json:"-"`
 	Username  *string   `json:"username"`
 	Email     string    `json:"email"`
 	Password  Password  `json:"-"`
@@ -54,13 +54,14 @@ type DbsUsers interface {
 	CreateUser(user *User) (*User, error)
 	GetUserByEmailPassword(user *User) (*User, error)
 	GetUserById(id uuid.UUID) (*User, error)
-	AuthenticateByJwt(jwt *tokens.Jwt) (*tokens.Jwt, error)
+	AuthenticateByJwt(jwt *tokens.Jwt) (*User, error)
 }
 
 type PgDbsUsers struct {
 	db DbService
 }
 
+var AnonymousUser = &User{}
 var dbsUsersInstance *PgDbsUsers
 
 func NewDbsUsers(db DbService) DbsUsers {
@@ -122,7 +123,9 @@ func (d *PgDbsUsers) CreateUser(user *User) (*User, error) {
 }
 
 func (d *PgDbsUsers) GetUserByEmailPassword(user *User) (*User, error) {
-	existingUser := &User{}
+	existingUser := &User{
+		Password: Password{},
+	}
 
 	query := `SELECT * FROM users
 	WHERE email = $1`
@@ -156,7 +159,9 @@ func (d *PgDbsUsers) GetUserByEmailPassword(user *User) (*User, error) {
 }
 
 func (d *PgDbsUsers) GetUserById(id uuid.UUID) (*User, error) {
-	user := &User{}
+	user := &User{
+		Password: Password{},
+	}
 
 	query := `SELECT * FROM users
 	WHERE id = $1`
@@ -180,8 +185,10 @@ func (d *PgDbsUsers) GetUserById(id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*tokens.Jwt, error) {
-	// TODO: this may not be needed...
+func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*User, error) {
+	existingUser := &User{
+		Password: Password{},
+	}
 
 	existingJwt := &tokens.Jwt{
 		Token:        &tokens.Token{},
@@ -200,11 +207,13 @@ func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*tokens.Jwt, error) {
 	}()
 
 	queryGetJwt := `SELECT * FROM jwt
-	WHERE user_id = $1`
+	WHERE token = $1`
+
+	hashToValidate := tokens.HashFromPlainText(jwt.Token.PlainText)
 
 	err = tx.QueryRow(
 		queryGetJwt,
-		jwt.UserId,
+		hashToValidate[:],
 	).Scan(
 		&existingJwt.Id,
 		&existingJwt.CreatedAt,
@@ -223,10 +232,29 @@ func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*tokens.Jwt, error) {
 		return nil, errors.New("error: dbsUsers AuthenticateByJwt: failed")
 	}
 
+	queryGetUser := `SELECT * FROM users
+	WHERE id = $1`
+
+	err = tx.QueryRow(
+		queryGetUser,
+		existingJwt.UserId,
+	).Scan(
+		&existingUser.Id,
+		&existingUser.CreatedAt,
+		&existingUser.UpdatedAt,
+		&existingUser.Username,
+		&existingUser.Email,
+		&existingUser.Password.Hash,
+		&existingUser.Role,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return nil, err
 	}
 
-	return existingJwt, nil
+	return existingUser, nil
 }

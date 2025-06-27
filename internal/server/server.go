@@ -38,7 +38,7 @@ func NewServer() *http.Server {
 	// handlers
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 
-	middleware := middleware.NewMiddleware()
+	middleware := middleware.NewMiddleware(dbsUsers, dbsJwt)
 
 	newServer := Server{
 		port:         8000,
