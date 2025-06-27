@@ -110,6 +110,7 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
 	url := "/home/"
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"user": createdUser,
 		"next": fmt.Sprintf("%s%s", url, createdUser.Id),
 	})
 }
@@ -225,6 +226,7 @@ func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
 	url := "/home/"
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"user": existingUser,
 		"next": fmt.Sprintf("%s%s", url, existingUser.Id),
 	})
 }
