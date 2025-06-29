@@ -15,9 +15,10 @@ import (
 type Server struct {
 	port         int
 	db           database.DbService
-	dbsUsers     database.DbsUsers
-	handlerUsers api.HandlerUsers
 	middleware   *middleware.Middleware
+	handlerUsers api.HandlerUsers
+	handlerJwt   api.HandlerJwt
+	handlerAnime api.HandlerAnime
 }
 
 func NewServer() *http.Server {
@@ -34,18 +35,24 @@ func NewServer() *http.Server {
 	// dbs
 	dbsUsers := database.NewDbsUsers(db)
 	dbsJwt := database.NewDbsJwt(db)
+	dbsAnime := database.NewDbsAnime(db)
+	dbsRelUsersAnime := database.NewDbsUsersAnime(db)
 
 	// handlers
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
+	handlerJwt := api.NewHandlerJwt(dbsJwt)
+	handlerAnime := api.NewHandlerAnime(dbsAnime, dbsRelUsersAnime)
 
+	// middleware
 	middleware := middleware.NewMiddleware(dbsUsers, dbsJwt)
 
 	newServer := Server{
 		port:         8000,
 		db:           db,
-		dbsUsers:     dbsUsers,
-		handlerUsers: handlerUsers,
 		middleware:   middleware,
+		handlerUsers: handlerUsers,
+		handlerJwt:   handlerJwt,
+		handlerAnime: handlerAnime,
 	}
 
 	mux := newServer.RegisterRoutes()

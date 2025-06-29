@@ -44,9 +44,9 @@ func NewHandlerUsers(dbsUsers database.DbsUsers, dbsJwt database.DbsJwt) Handler
 
 func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 	type ValidateRequest struct {
-		Email    *string
-		Username *string // this is not used by dbsUsers
-		Password *string
+		Email    *string `json:"email"`
+		Username *string `json:"username"`
+		Password *string `json:"password"`
 	}
 
 	var req ValidateRequest
@@ -116,8 +116,16 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
-	userIdStr := chi.URLParam(r, "userId")
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: handler users GetUserById: user is nil")
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
 
+	userIdStr := chi.URLParam(r, "userId")
 	err := uuid.Validate(userIdStr)
 	if err != nil {
 		log.Printf("error: handler_users GetUserById validate userIdStr: %v", err)
@@ -130,6 +138,14 @@ func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
 	userId, err := uuid.Parse(userIdStr)
 	if err != nil {
 		log.Printf("error: handler_users GetUserById parse userIdStr: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	if user.Id != userId {
+		log.Printf("error: handler_users GetUserById user not equal requesting user")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
@@ -152,8 +168,8 @@ func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 	type ValidateRequest struct {
-		Email    *string
-		Password *string
+		Email    *string `json:"email"`
+		Password *string `json:"password"`
 	}
 
 	var req ValidateRequest
