@@ -146,7 +146,9 @@ func (d *PgDbsJwt) Get(user *User) (*tokens.Jwt, error) {
 	}
 
 	query := `SELECT * FROM jwt
-	WHERE user_id = $1`
+	WHERE user_id = $1
+	ORDER BY created_at DESC
+	LIMIT 1`
 
 	err := d.db.Conn().QueryRow(
 		query,
