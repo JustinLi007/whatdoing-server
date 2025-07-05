@@ -127,6 +127,7 @@ func (h *handlerAnime) NewAnime(w http.ResponseWriter, r *http.Request) {
 
 		anime.Episodes = req.Episodes
 		anime.Description = req.Description
+		anime.ImageUrl = req.ImageUrl
 		anime.AnimeName.Name = *req.Name
 		dbAnime, err = h.dbsAnime.InsertAnime(anime)
 		if err != nil {

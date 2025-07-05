@@ -12,8 +12,10 @@ type Anime struct {
 	Id          uuid.UUID `json:"id"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	Kind        string    `json:"kind"`
 	Episodes    *int      `json:"episodes"`
 	Description *string   `json:"description"` // TODO: maybe remove this.
+	ImageUrl    *string   `json:"image_url"`
 	AnimeName   AnimeName `json:"anime_name"`
 }
 
@@ -104,7 +106,7 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 	}
 
 	// TODO: include other fields?
-	queryInsertAnime := `INSERT INTO anime (id, episodes, description, anime_names_id)
+	queryInsertAnime := `INSERT INTO anime (id, episodes, description, image_url, anime_names_id)
 	VALUES ($1, $2, $3, $4)
 	RETURNING id, created_at, updated_at, episodes, description`
 
@@ -113,13 +115,16 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 		uuid.New(),
 		anime.Episodes,
 		anime.Description,
+		anime.ImageUrl,
 		newAnime.AnimeName.Id,
 	).Scan(
 		&newAnime.Id,
 		&newAnime.CreatedAt,
 		&newAnime.UpdatedAt,
+		&newAnime.Kind,
 		&newAnime.Episodes,
 		&newAnime.Description,
+		&newAnime.ImageUrl,
 	)
 	if err != nil {
 		log.Printf("insert anime")
@@ -176,8 +181,10 @@ func (d *PgDbsAnime) GetAnimeById(anime *Anime) (*Anime, error) {
 		&existingAnime.Id,
 		&existingAnime.CreatedAt,
 		&existingAnime.UpdatedAt,
+		&existingAnime.Kind,
 		&existingAnime.Episodes,
 		&existingAnime.Description,
+		&existingAnime.ImageUrl,
 		&existingAnime.AnimeName.Id,
 		&existingAnime.AnimeName.CreatedAt,
 		&existingAnime.AnimeName.UpdatedAt,
@@ -193,7 +200,7 @@ func (d *PgDbsAnime) GetAnimeById(anime *Anime) (*Anime, error) {
 func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
 	animeList := make([]*Anime, 0)
 
-	query := `SELECT a.id, a.created_at, a.updated_at, a.episodes, a.description, an.id, an.created_at, an.updated_at, an.name FROM anime a
+	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url, an.id, an.created_at, an.updated_at, an.name FROM anime a
 	JOIN anime_names an ON a.anime_names_id = an.id`
 
 	rows, err := d.db.Conn().Query(
@@ -210,13 +217,17 @@ func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
 	}
 
 	for rows.Next() == true {
-		anime := &Anime{}
+		anime := &Anime{
+			AnimeName: AnimeName{},
+		}
 		err := rows.Scan(
 			&anime.Id,
 			&anime.CreatedAt,
 			&anime.UpdatedAt,
+			&anime.Kind,
 			&anime.Episodes,
 			&anime.Description,
+			&anime.ImageUrl,
 			&anime.AnimeName.Id,
 			&anime.AnimeName.CreatedAt,
 			&anime.AnimeName.UpdatedAt,
