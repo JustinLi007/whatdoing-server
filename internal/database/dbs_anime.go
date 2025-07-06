@@ -107,8 +107,8 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 
 	// TODO: include other fields?
 	queryInsertAnime := `INSERT INTO anime (id, episodes, description, image_url, anime_names_id)
-	VALUES ($1, $2, $3, $4)
-	RETURNING id, created_at, updated_at, episodes, description`
+	VALUES ($1, $2, $3, $4, $5)
+	RETURNING id, created_at, updated_at, kind, episodes, description, image_url`
 
 	err = tx.QueryRow(
 		queryInsertAnime,
