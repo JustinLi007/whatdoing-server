@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -219,23 +218,13 @@ func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.dbsJwt.Get(existingUser)
-	if err == nil && time.Now().After(token.RefreshToken.Expiry) {
-		err = errors.New("error: refresh token expired")
-	} else if err == nil {
-		token, err = h.dbsJwt.Update(token)
-	}
-
+	token, err := h.dbsJwt.Insert(existingUser.Id, time.Hour*12, time.Hour*24, tokens.ScopeAuthenticate)
 	if err != nil {
-		log.Printf("error: handler_users Login dbs.Get: %v", err)
-		token, err = h.dbsJwt.Insert(existingUser.Id, time.Hour*12, time.Hour*24, tokens.ScopeAuthenticate)
-		if err != nil {
-			log.Printf("error: handler_users Login dbs.CreateToken: %v", err)
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
+		log.Printf("error: handler_users Login dbs.Insert: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
 	}
 
 	utils.SetCookie(w, "whatdoing-jwt", token.Token.PlainText)

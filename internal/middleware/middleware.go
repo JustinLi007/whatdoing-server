@@ -72,7 +72,7 @@ func (m *Middleware) RequireJwt(next http.Handler) http.Handler {
 				PlainText: cookie.Value,
 			},
 		}
-		user, err := m.dbsUsers.AuthenticateByJwt(jwtValidate)
+		user, err := m.dbsUsers.AuthenticateWithJwt(jwtValidate)
 		if err != nil {
 			log.Printf("error: middleware LoggedIn: AuthenticateByJwt: %v", err)
 			next.ServeHTTP(w, r)

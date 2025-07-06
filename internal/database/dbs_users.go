@@ -54,7 +54,7 @@ type DbsUsers interface {
 	CreateUser(user *User) (*User, error)
 	GetUserByEmailPassword(user *User) (*User, error)
 	GetUserById(id uuid.UUID) (*User, error)
-	AuthenticateByJwt(jwt *tokens.Jwt) (*User, error)
+	AuthenticateWithJwt(jwt *tokens.Jwt) (*User, error)
 }
 
 type PgDbsUsers struct {
@@ -185,7 +185,7 @@ func (d *PgDbsUsers) GetUserById(id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (d *PgDbsUsers) AuthenticateByJwt(jwt *tokens.Jwt) (*User, error) {
+func (d *PgDbsUsers) AuthenticateWithJwt(jwt *tokens.Jwt) (*User, error) {
 	existingUser := &User{
 		Password: Password{},
 	}
