@@ -26,6 +26,14 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireUser)
 
 		r.Post("/contents", s.handlerAnime.NewAnime)
+		r.Post("/contents/{contentId}", s.handlerAnime.UpdateAnime)
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Use(s.middleware.RequireUser)
+
+		// r.Get("/edit/{contentId}", s.handlerAnime.GetAnime)
 	})
 
 	return r
