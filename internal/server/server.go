@@ -39,12 +39,13 @@ func NewServer() *http.Server {
 	dbsAnime := database.NewDbsAnime(db)
 	dbsRelUsersAnime := database.NewDbsUsersAnime(db)
 	dbsAnimeNames := database.NewDbsAnimeNames(db)
+	dbsRelAnimeAnimeNames := database.NewDbsRelAnimeAnimeNames(db)
 
 	// handlers
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 	handlerJwt := api.NewHandlerJwt(dbsJwt)
 	handlerAnime := api.NewHandlerAnime(dbsAnime, dbsRelUsersAnime)
-	handlerAnimeNames := api.NewHandlerAnimeNames(dbsAnimeNames)
+	handlerAnimeNames := api.NewHandlerAnimeNames(dbsAnimeNames, dbsRelAnimeAnimeNames)
 
 	// middleware
 	middleware := middleware.NewMiddleware(dbsUsers, dbsJwt)

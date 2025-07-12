@@ -15,6 +15,7 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 	r.Get("/contents/{contentId}", s.handlerAnime.GetAnime)
 
 	r.Get("/names/anime/{animeId}", s.handlerAnimeNames.GetNamesByAnime)
+	r.Get("/names/anime", s.handlerAnimeNames.GetNames)
 
 	r.Group(func(r chi.Router) {
 		r.Use(s.middleware.RequireJwt)
