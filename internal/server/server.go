@@ -13,12 +13,13 @@ import (
 )
 
 type Server struct {
-	port         int
-	db           database.DbService
-	middleware   *middleware.Middleware
-	handlerUsers api.HandlerUsers
-	handlerJwt   api.HandlerJwt
-	handlerAnime api.HandlerAnime
+	port              int
+	db                database.DbService
+	middleware        *middleware.Middleware
+	handlerUsers      api.HandlerUsers
+	handlerJwt        api.HandlerJwt
+	handlerAnime      api.HandlerAnime
+	handlerAnimeNames api.HandlerAnimeNames
 }
 
 func NewServer() *http.Server {
@@ -37,22 +38,25 @@ func NewServer() *http.Server {
 	dbsJwt := database.NewDbsJwt(db)
 	dbsAnime := database.NewDbsAnime(db)
 	dbsRelUsersAnime := database.NewDbsUsersAnime(db)
+	dbsAnimeNames := database.NewDbsAnimeNames(db)
 
 	// handlers
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 	handlerJwt := api.NewHandlerJwt(dbsJwt)
 	handlerAnime := api.NewHandlerAnime(dbsAnime, dbsRelUsersAnime)
+	handlerAnimeNames := api.NewHandlerAnimeNames(dbsAnimeNames)
 
 	// middleware
 	middleware := middleware.NewMiddleware(dbsUsers, dbsJwt)
 
 	newServer := Server{
-		port:         8000,
-		db:           db,
-		middleware:   middleware,
-		handlerUsers: handlerUsers,
-		handlerJwt:   handlerJwt,
-		handlerAnime: handlerAnime,
+		port:              8000,
+		db:                db,
+		middleware:        middleware,
+		handlerUsers:      handlerUsers,
+		handlerJwt:        handlerJwt,
+		handlerAnime:      handlerAnime,
+		handlerAnimeNames: handlerAnimeNames,
 	}
 
 	mux := newServer.RegisterRoutes()

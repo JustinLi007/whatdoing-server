@@ -15,11 +15,11 @@ type DbService interface {
 	MigrateFS(migrationFS fs.FS, dir string) error
 }
 
-type dbService struct {
+type PgDbService struct {
 	db *sql.DB
 }
 
-var dbInstance *dbService
+var dbInstance *PgDbService
 
 func NewDb() (DbService, error) {
 	if dbInstance != nil {
@@ -32,7 +32,7 @@ func NewDb() (DbService, error) {
 		return nil, err
 	}
 
-	newDbService := &dbService{
+	newDbService := &PgDbService{
 		db: conn,
 	}
 	dbInstance = newDbService
@@ -62,11 +62,11 @@ func Open() (*sql.DB, error) {
 	return conn, nil
 }
 
-func (s *dbService) Conn() *sql.DB {
+func (s *PgDbService) Conn() *sql.DB {
 	return s.db
 }
 
-func (s *dbService) MigrateFS(migrationFS fs.FS, dir string) error {
+func (s *PgDbService) MigrateFS(migrationFS fs.FS, dir string) error {
 	goose.SetBaseFS(migrationFS)
 	defer func() {
 		goose.SetBaseFS(nil)
