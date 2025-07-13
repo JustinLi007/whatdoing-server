@@ -10,13 +10,6 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 
 	r.Post("/users/login", s.handlerUsers.Login)
 	r.Post("/users/signup", s.handlerUsers.SignUp)
-
-	r.Get("/contents", s.handlerAnime.GetAllAnime)
-	r.Get("/contents/{contentId}", s.handlerAnime.GetAnime)
-
-	r.Get("/names/anime/{animeId}", s.handlerAnimeNames.GetNamesByAnime)
-	r.Get("/names/anime", s.handlerAnimeNames.GetNames)
-
 	r.Group(func(r chi.Router) {
 		r.Use(s.middleware.RequireJwt)
 		r.Use(s.middleware.RequireUser)
@@ -24,19 +17,14 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Get("/users/{userId}", s.handlerUsers.GetUserById)
 	})
 
+	r.Get("/contents/anime", s.handlerAnime.GetAllAnime)
+	r.Get("/contents/anime/{contentId}", s.handlerAnime.GetAnime)
 	r.Group(func(r chi.Router) {
 		r.Use(s.middleware.RequireJwt)
 		r.Use(s.middleware.RequireUser)
 
-		r.Post("/contents", s.handlerAnime.NewAnime)
-		r.Post("/contents/{contentId}", s.handlerAnime.UpdateAnime)
-	})
-
-	r.Group(func(r chi.Router) {
-		r.Use(s.middleware.RequireJwt)
-		r.Use(s.middleware.RequireUser)
-
-		// r.Get("/edit/{contentId}", s.handlerAnime.GetAnime)
+		r.Post("/contents/anime", s.handlerAnime.NewAnime)
+		r.Post("/contents/anime/{contentId}", s.handlerAnime.UpdateAnime)
 	})
 
 	return r
