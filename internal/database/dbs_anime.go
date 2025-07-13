@@ -9,19 +9,20 @@ import (
 )
 
 type Anime struct {
-	Id          uuid.UUID `json:"id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Kind        string    `json:"kind"`
-	Episodes    *int      `json:"episodes"`
-	Description *string   `json:"description"` // TODO: maybe remove this.
-	ImageUrl    *string   `json:"image_url"`
-	AnimeName   AnimeName `json:"anime_name"`
+	Id               uuid.UUID    `json:"id"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	Kind             string       `json:"kind"`
+	Episodes         *int         `json:"episodes"`
+	Description      *string      `json:"description"` // TODO: maybe remove this.
+	ImageUrl         *string      `json:"image_url"`
+	AnimeName        AnimeName    `json:"anime_name"`
+	AlternativeNames []*AnimeName `json:"alternative_names"`
 }
 
 type DbsAnime interface {
 	InsertAnime(anime *Anime) (*Anime, error)
-	GetAnimeById(anime *Anime) (*Anime, error)
+	GetAnimeById(params *Anime) (*Anime, error)
 	GetAllAnime() ([]*Anime, error)
 	UpdateAnime(anime *Anime) error
 }
@@ -125,8 +126,6 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 		return nil, err
 	}
 
-	log.Printf("before here...")
-
 	if newNameRel {
 		queryInsertRelAnimeAnimeName := `INSERT INTO rel_anime_anime_names (id, anime_id, anime_names_id)
 		VALUES ($1, $2, $3)`
@@ -159,82 +158,105 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 	return newAnime, nil
 }
 
-func (d *PgDbsAnime) GetAnimeById(anime *Anime) (*Anime, error) {
-	existingAnime := &Anime{
-		AnimeName: AnimeName{},
-	}
-
-	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url, an.id, an.created_at, an.updated_at, an.name
-	FROM anime a JOIN anime_names an ON a.anime_names_id = an.id
-	WHERE a.id = $1`
-
-	err := d.db.Conn().QueryRow(
-		query,
-		anime.Id,
-	).Scan(
-		&existingAnime.Id,
-		&existingAnime.CreatedAt,
-		&existingAnime.UpdatedAt,
-		&existingAnime.Kind,
-		&existingAnime.Episodes,
-		&existingAnime.Description,
-		&existingAnime.ImageUrl,
-		&existingAnime.AnimeName.Id,
-		&existingAnime.AnimeName.CreatedAt,
-		&existingAnime.AnimeName.UpdatedAt,
-		&existingAnime.AnimeName.Name,
-	)
+func (d *PgDbsAnime) GetAnimeById(params *Anime) (*Anime, error) {
+	tx, err := d.db.Conn().Begin()
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: DbsAnime GetAnimeById: Rollback: %v", err)
+		}
+	}()
+
+	existingAnime, err := SelectAnimeJoinName(tx, params)
+	if err != nil {
+		log.Printf("error: DbsAnime GetAnimeById: SelectAnimeJoinName: %v", err)
+		return nil, err
+	}
+
+	altNames, err := SelectAllNamesByAnimeId(tx, params)
+	if err != nil {
+		log.Printf("error: DbsAnime GetAnimeById: SelectAllNamesByAnimeId: %v", err)
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: DbsAnime GetAnimeById: Commit: %v", err)
+		return nil, err
+	}
+
+	existingAnime.AlternativeNames = altNames
 
 	return existingAnime, nil
 }
 
 func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
-	animeList := make([]*Anime, 0)
-
-	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url, an.id, an.created_at, an.updated_at, an.name FROM anime a
-	JOIN anime_names an ON a.anime_names_id = an.id`
-
-	rows, err := d.db.Conn().Query(
-		query,
-	)
-	defer func() {
-		err := rows.Close()
-		if err != nil {
-			log.Printf("error: dbs anime GetAllAnime: close rows: %v", err)
-		}
-	}()
+	tx, err := d.db.Conn().Begin()
 	if err != nil {
 		return nil, err
 	}
-
-	for rows.Next() == true {
-		anime := &Anime{
-			AnimeName: AnimeName{},
-		}
-		err := rows.Scan(
-			&anime.Id,
-			&anime.CreatedAt,
-			&anime.UpdatedAt,
-			&anime.Kind,
-			&anime.Episodes,
-			&anime.Description,
-			&anime.ImageUrl,
-			&anime.AnimeName.Id,
-			&anime.AnimeName.CreatedAt,
-			&anime.AnimeName.UpdatedAt,
-			&anime.AnimeName.Name,
-		)
+	defer func() {
+		err := tx.Rollback()
 		if err != nil {
-			log.Printf("error: dbs anime GetAllAnime scan: %v", err)
-			return nil, err
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: DbsAnime GetAllAnime: Rollback: %v", err)
 		}
-		animeList = append(animeList, anime)
+	}()
+
+	allAnime, err := SelectAllAnimeJoinName(tx)
+	if err != nil {
+		log.Printf("error: DbsAnime GetAllAnime: SelectAllAnimeJoinName: %v", err)
+		return nil, err
 	}
 
-	return animeList, nil
+	allNames, err := SelectAllNamesAnime(tx)
+	if err != nil {
+		log.Printf("error: DbsAnime GetAllAnime: SelectAllNamesAnime: %v", err)
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: DbsAnime GetAllAnime: Commit: %v", err)
+		return nil, err
+	}
+
+	namesMap := make(map[uuid.UUID][]*AnimeName)
+	for _, v := range allNames {
+		curId := v.AnimeId
+
+		_, ok := namesMap[curId]
+		if !ok {
+			namesMap[curId] = make([]*AnimeName, 0)
+		}
+
+		name := &AnimeName{
+			Id:        v.AnimeName.Id,
+			CreatedAt: v.AnimeName.CreatedAt,
+			UpdatedAt: v.AnimeName.UpdatedAt,
+			Name:      v.AnimeName.Name,
+		}
+
+		namesMap[curId] = append(namesMap[curId], name)
+	}
+
+	for k, v := range allAnime {
+		curId := v.Id
+		names, ok := namesMap[curId]
+		if ok {
+			allAnime[k].AlternativeNames = names
+		}
+	}
+
+	return allAnime, nil
 }
 
 func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
@@ -285,4 +307,84 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 	}
 
 	return nil
+}
+
+func SelectAnimeJoinName(tx *sql.Tx, params *Anime) (*Anime, error) {
+	existingAnime := &Anime{
+		AnimeName: AnimeName{},
+	}
+
+	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url, an.id, an.created_at, an.updated_at, an.name
+	FROM anime a JOIN anime_names an ON a.anime_names_id = an.id
+	WHERE a.id = $1`
+
+	err := tx.QueryRow(
+		query,
+		params.Id,
+	).Scan(
+		&existingAnime.Id,
+		&existingAnime.CreatedAt,
+		&existingAnime.UpdatedAt,
+		&existingAnime.Kind,
+		&existingAnime.Episodes,
+		&existingAnime.Description,
+		&existingAnime.ImageUrl,
+		&existingAnime.AnimeName.Id,
+		&existingAnime.AnimeName.CreatedAt,
+		&existingAnime.AnimeName.UpdatedAt,
+		&existingAnime.AnimeName.Name,
+	)
+	if err != nil {
+		log.Printf("error: DbsAnime SelectAnimeJoinName: Scan: %v", err)
+		return nil, err
+	}
+
+	return existingAnime, nil
+}
+
+func SelectAllAnimeJoinName(tx *sql.Tx) ([]*Anime, error) {
+	animeList := make([]*Anime, 0)
+
+	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
+	an.id, an.created_at, an.updated_at, an.name
+	FROM anime a
+	JOIN anime_names an ON a.anime_names_id = an.id`
+
+	rows, err := tx.Query(query)
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("error: DbsAnime SelectAllAnimeJoinName: close rows: %v", err)
+		}
+	}()
+	if err != nil {
+		log.Printf("error: DbsAnime SelectAllAnimeJoinName: Query: %v", err)
+		return nil, err
+	}
+
+	for rows.Next() == true {
+		anime := &Anime{
+			AnimeName: AnimeName{},
+		}
+		err := rows.Scan(
+			&anime.Id,
+			&anime.CreatedAt,
+			&anime.UpdatedAt,
+			&anime.Kind,
+			&anime.Episodes,
+			&anime.Description,
+			&anime.ImageUrl,
+			&anime.AnimeName.Id,
+			&anime.AnimeName.CreatedAt,
+			&anime.AnimeName.UpdatedAt,
+			&anime.AnimeName.Name,
+		)
+		if err != nil {
+			log.Printf("error: DbsAnime SelectAllAnimeJoinName: Scan: %v", err)
+			return nil, err
+		}
+		animeList = append(animeList, anime)
+	}
+
+	return animeList, nil
 }
