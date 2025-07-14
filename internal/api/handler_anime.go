@@ -201,7 +201,7 @@ func (h *handlerAnime) GetAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"content": dbAnime,
+		"anime": dbAnime,
 	})
 }
 
