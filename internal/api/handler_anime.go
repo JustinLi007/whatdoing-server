@@ -329,6 +329,9 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, v := range req.AlternativeNames {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
 		anime.AlternativeNames = append(anime.AlternativeNames, &database.AnimeName{
 			Name: v,
 		})
