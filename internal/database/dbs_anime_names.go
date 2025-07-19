@@ -69,6 +69,51 @@ func (d *PgDbsAnimeNames) GetNamesByAnime(params *Anime) ([]*AnimeName, error) {
 	return names, nil
 }
 
+func InsertAnimeName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
+	result := &AnimeName{}
+
+	query := `INSERT INTO anime_names (id, name)
+	VALUES ($1, $2)
+	RETURNING id, created_at, updated_at, name`
+
+	err := tx.QueryRow(
+		query,
+		uuid.New(),
+		params.Name,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Name,
+	)
+	if err != nil {
+		log.Printf("error: DbsAnimeNames InsertAnimeName: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func SelectAnimeNameByName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
+	result := &AnimeName{}
+
+	query := `SELECT * FROM anime_names
+	WHERE name = $1`
+
+	err := tx.QueryRow(query, params.Name).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Name,
+	)
+	if err != nil {
+		log.Printf("error: DbsAnimeNames SelectAnimeNameByName: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func SelectAllNamesByAnimeId(tx *sql.Tx, params *Anime) ([]*AnimeName, error) {
 	animeNames := make([]*AnimeName, 0)
 

@@ -155,7 +155,7 @@ func (h *handlerAnime) NewAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"next": fmt.Sprintf("/contents/%s", dbAnime.Id),
+		"next": fmt.Sprintf("/contents/anime/%s", dbAnime.Id),
 	})
 }
 
@@ -335,6 +335,6 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"next": fmt.Sprintf("/contents/%s", animeId),
+		"next": fmt.Sprintf("/contents/anime/%s", animeId),
 	})
 }

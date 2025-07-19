@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"time"
 
@@ -14,7 +15,7 @@ type Anime struct {
 	UpdatedAt        time.Time    `json:"updated_at"`
 	Kind             string       `json:"kind"`
 	Episodes         *int         `json:"episodes"`
-	Description      *string      `json:"description"` // TODO: maybe remove this.
+	Description      *string      `json:"description"`
 	ImageUrl         *string      `json:"image_url"`
 	AnimeName        AnimeName    `json:"anime_name"`
 	AlternativeNames []*AnimeName `json:"alternative_names"`
@@ -47,115 +48,65 @@ func NewDbsAnime(db DbService) DbsAnime {
 }
 
 func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
-	// TODO: this probably should return an err indicating already exist so caller can handle accordingly...
-
-	newAnime := &Anime{
+	result := &Anime{
 		AnimeName: AnimeName{},
 	}
 	newNameRel := false
 
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
+		log.Printf("error: DbsAnime: Conn: %v", err)
 		return nil, err
 	}
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
-			log.Printf("error: dbs anime InsertAnime: %v", err)
+			log.Printf("error: DbsAnime InsertAnime: Rollback: %v", err)
 		}
 	}()
 
-	queryGetAnimeName := `SELECT * FROM anime_names
-	WHERE name = $1`
-
-	err = tx.QueryRow(
-		queryGetAnimeName,
-		anime.AnimeName.Name,
-	).Scan(
-		&newAnime.AnimeName.Id,
-		&newAnime.AnimeName.CreatedAt,
-		&newAnime.AnimeName.UpdatedAt,
-		&newAnime.AnimeName.Name,
-	)
+	dbAnimeName, err := SelectAnimeNameByName(tx, &anime.AnimeName)
 	if err != nil {
-		log.Printf("couldnt get anime name")
-		queryInsertAnimeName := `INSERT INTO anime_names (id, name)
-	VALUES ($1, $2)
-	RETURNING id, created_at, updated_at, name`
-
-		err = tx.QueryRow(
-			queryInsertAnimeName,
-			uuid.New(),
-			anime.AnimeName.Name,
-		).Scan(
-			&newAnime.AnimeName.Id,
-			&newAnime.AnimeName.CreatedAt,
-			&newAnime.AnimeName.UpdatedAt,
-			&newAnime.AnimeName.Name,
-		)
+		dbAnimeName, err = InsertAnimeName(tx, &anime.AnimeName)
 		if err != nil {
-			log.Printf("insert anime name")
+			log.Printf("error: DbsAnime InsertAnime: InsertAnimeName: %v", err)
 			return nil, err
 		}
 		newNameRel = true
+	} else {
+		// TODO: this probably should return an err indicating already exist so caller can handle accordingly...
+		return nil, errors.New("error: already exists")
 	}
 
-	// TODO: include other fields?
-	queryInsertAnime := `INSERT INTO anime (id, episodes, description, image_url, anime_names_id)
-	VALUES ($1, $2, $3, $4, $5)
-	RETURNING id, created_at, updated_at, kind, episodes, description, image_url`
-
-	err = tx.QueryRow(
-		queryInsertAnime,
-		uuid.New(),
-		anime.Episodes,
-		anime.Description,
-		anime.ImageUrl,
-		newAnime.AnimeName.Id,
-	).Scan(
-		&newAnime.Id,
-		&newAnime.CreatedAt,
-		&newAnime.UpdatedAt,
-		&newAnime.Kind,
-		&newAnime.Episodes,
-		&newAnime.Description,
-		&newAnime.ImageUrl,
-	)
+	anime.AnimeName = *dbAnimeName
+	dbAnime, err := InsertAnime(tx, anime)
 	if err != nil {
-		log.Printf("insert anime")
+		log.Printf("error: DbsAnime InsertAnime: InsertAnime: %v", err)
 		return nil, err
 	}
 
-	if newNameRel {
-		queryInsertRelAnimeAnimeName := `INSERT INTO rel_anime_anime_names (id, anime_id, anime_names_id)
-		VALUES ($1, $2, $3)`
+	result = dbAnime
+	result.AnimeName = *dbAnimeName
 
-		result, err := tx.Exec(
-			queryInsertRelAnimeAnimeName,
-			uuid.New(),
-			newAnime.Id,
-			newAnime.AnimeName.Id,
-		)
-		if err != nil {
-			log.Printf("insert rel")
-			return nil, err
+	if newNameRel {
+		relReq := &RelAnimeAnimeNames{
+			AnimeId:   result.Id,
+			AnimeName: result.AnimeName,
 		}
-		n, err := result.RowsAffected()
+		err := InsertRelAnimeAnimeNames(tx, relReq)
 		if err != nil {
+			log.Printf("error: DbsAnime InsertRelAnimeAnimeNames: %v:", err)
 			return nil, err
-		}
-		if n == 0 {
-			return nil, sql.ErrNoRows
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Printf("commit")
+		log.Printf("error: DbsAnime InsertAnime: Commit: %v", err)
 		return nil, err
 	}
 
-	return newAnime, nil
+	return result, nil
 }
 
 func (d *PgDbsAnime) GetAnimeById(params *Anime) (*Anime, error) {
@@ -307,6 +258,37 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 	}
 
 	return nil
+}
+
+func InsertAnime(tx *sql.Tx, params *Anime) (*Anime, error) {
+	result := &Anime{}
+
+	query := `INSERT INTO anime (id, episodes, description, image_url, anime_names_id)
+	VALUES ($1, $2, $3, $4, $5)
+	RETURNING id, created_at, updated_at, kind, episodes, description, image_url`
+
+	err := tx.QueryRow(
+		query,
+		uuid.New(),
+		params.Episodes,
+		params.Description,
+		params.ImageUrl,
+		params.AnimeName.Id,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Kind,
+		&result.Episodes,
+		&result.Description,
+		&result.ImageUrl,
+	)
+	if err != nil {
+		log.Printf("error: DbsAnime InsertAnime: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func SelectAnimeJoinName(tx *sql.Tx, params *Anime) (*Anime, error) {

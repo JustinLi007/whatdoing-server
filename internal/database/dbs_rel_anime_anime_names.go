@@ -69,6 +69,32 @@ func (d *PgDbsRelAnimeAnimeNames) GetNames() ([]*RelAnimeAnimeNames, error) {
 	return names, nil
 }
 
+func InsertRelAnimeAnimeNames(tx *sql.Tx, params *RelAnimeAnimeNames) error {
+	query := `INSERT INTO rel_anime_anime_names (id, anime_id, anime_names_id)
+		VALUES ($1, $2, $3)`
+
+	queryResult, err := tx.Exec(
+		query,
+		uuid.New(),
+		params.AnimeId,
+		params.AnimeName.Id,
+	)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeAnimeNames InsertRelAnimeAnimeNames: Query: %v", err)
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err == nil {
+		if n == 0 {
+			log.Printf("error: DbsRelAnimeAnimeNames InsertRelAnimeAnimeNames: RowsAffected: 0")
+			return sql.ErrNoRows
+		}
+	}
+
+	return nil
+}
+
 func SelectAllNamesAnime(tx *sql.Tx) ([]*RelAnimeAnimeNames, error) {
 	rels := make([]*RelAnimeAnimeNames, 0)
 
