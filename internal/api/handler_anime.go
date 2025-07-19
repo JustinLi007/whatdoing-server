@@ -222,12 +222,13 @@ func (h *handlerAnime) GetAllAnime(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	type AnimeRequest struct {
-		ContentId      *string `json:"content_id"`
-		ContentNamesId *string `json:"content_names_id"`
-		ContentType    *string `json:"content_type"`
-		Description    *string `json:"description"`
-		ImageUrl       *string `json:"image_url"`
-		Episodes       *int    `json:"episodes"`
+		ContentId        *string  `json:"content_id"`
+		ContentNamesId   *string  `json:"content_names_id"`
+		ContentType      *string  `json:"content_type"`
+		Description      *string  `json:"description"`
+		ImageUrl         *string  `json:"image_url"`
+		Episodes         *int     `json:"episodes"`
+		AlternativeNames []string `json:"alternative_names"`
 	}
 
 	user := utils.GetUser(r)
@@ -324,7 +325,15 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 		AnimeName: database.AnimeName{
 			Id: animeNamesId,
 		},
+		AlternativeNames: make([]*database.AnimeName, 0),
 	}
+
+	for _, v := range req.AlternativeNames {
+		anime.AlternativeNames = append(anime.AlternativeNames, &database.AnimeName{
+			Name: v,
+		})
+	}
+
 	err = h.dbsAnime.UpdateAnime(anime)
 	if err != nil {
 		log.Printf("error: handler anime UpdateAnime: %v", err)

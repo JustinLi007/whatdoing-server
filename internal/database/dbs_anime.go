@@ -211,49 +211,48 @@ func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
 }
 
 func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
-	query := `UPDATE anime
-	SET
-		updated_at = $2,
-		episodes = $3,
-		description = $4,
-		image_url = $5,
-		anime_names_id = $6
-	WHERE id = $1
-	`
-
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
+		log.Printf("error: DbsAnime UpdateAnime: Conn: %v", err)
 		return err
 	}
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
-			log.Printf("error: dbs anime UpdateAnime: %v", err)
+			log.Printf("error: DbsAnime UpdateAnime: Rollback: %v", err)
 		}
 	}()
 
-	result, err := tx.Exec(
-		query,
-		anime.Id,
-		anime.UpdatedAt,
-		anime.Episodes,
-		anime.Description,
-		anime.ImageUrl,
-		anime.AnimeName.Id,
-	)
+	err = UpdateAnimeById(tx, anime)
 	if err != nil {
+		log.Printf("error: DbsAnime UpdateAnime: UpdateAnimeById: %v", err)
 		return err
 	}
 
-	n, err := result.RowsAffected()
-	if err == nil {
-		if n == 0 {
-			return sql.ErrNoRows
+	for _, v := range anime.AlternativeNames {
+		_, err := SelectAnimeNameByName(tx, v)
+		if err != nil {
+			dbAnimeName, err := InsertAnimeName(tx, v)
+			if err != nil {
+				log.Printf("error: DbsAnime UpdateAnime: InsertAnimeName: %v", err)
+				return err
+			}
+
+			relReq := &RelAnimeAnimeNames{
+				AnimeId:   anime.Id,
+				AnimeName: *dbAnimeName,
+			}
+			err = InsertRelAnimeAnimeNames(tx, relReq)
+			if err != nil {
+				log.Printf("error: DbsAnime UpdateAnime: InsertRelAnimeAnimeNames: %v", err)
+				return err
+			}
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
+		log.Printf("error: DbsAnime UpdateAnime: Commit: %v", err)
 		return err
 	}
 
@@ -369,4 +368,38 @@ func SelectAllAnimeJoinName(tx *sql.Tx) ([]*Anime, error) {
 	}
 
 	return animeList, nil
+}
+
+func UpdateAnimeById(tx *sql.Tx, params *Anime) error {
+	query := `UPDATE anime
+	SET
+		updated_at = $2,
+		episodes = $3,
+		description = $4,
+		image_url = $5,
+		anime_names_id = $6
+	WHERE id = $1`
+
+	queryResult, err := tx.Exec(
+		query,
+		params.Id,
+		params.UpdatedAt,
+		params.Episodes,
+		params.Description,
+		params.ImageUrl,
+		params.AnimeName.Id,
+	)
+	if err != nil {
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err == nil {
+		if n == 0 {
+			log.Printf("error: DbsAnime UpdateAnimeById: RowsAffected: 0")
+			return sql.ErrNoRows
+		}
+	}
+
+	return nil
 }
