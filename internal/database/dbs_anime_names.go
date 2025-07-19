@@ -16,7 +16,6 @@ type AnimeName struct {
 }
 
 type DbsAnimeNames interface {
-	GetNamesByAnime(params *Anime) ([]*AnimeName, error)
 }
 
 type PgDbsAnimeNames struct {
@@ -36,37 +35,6 @@ func NewDbsAnimeNames(db DbService) DbsAnimeNames {
 	dbsAnimeNamesInstance = newDbsAnimeNames
 
 	return dbsAnimeNamesInstance
-}
-
-func (d *PgDbsAnimeNames) GetNamesByAnime(params *Anime) ([]*AnimeName, error) {
-	tx, err := d.db.Conn().Begin()
-	if err != nil {
-		log.Printf("error: DbsAnimeNames GetNamesByAnime: Conn: %v", err)
-		return nil, err
-	}
-	defer func() {
-		err := tx.Rollback()
-		if err != nil {
-			if err.Error() == "sql: transaction has already been committed or rolled back" {
-				return
-			}
-			log.Printf("error: DbsAnimeNames GetNamesByAnime: Rollback: %v", err)
-		}
-	}()
-
-	names, err := SelectAllNamesByAnimeId(tx, params)
-	if err != nil {
-		log.Printf("error: DbsAnimeNames GetNamesByAnime: SelectAllNamesByAnimeId: %v", err)
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		log.Printf("error: DbsAnimeNames GetNamesByAnime: Commit: %v", err)
-		return nil, err
-	}
-
-	return names, nil
 }
 
 func InsertAnimeName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
@@ -112,44 +80,4 @@ func SelectAnimeNameByName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
 	}
 
 	return result, nil
-}
-
-func SelectAllNamesByAnimeId(tx *sql.Tx, params *Anime) ([]*AnimeName, error) {
-	animeNames := make([]*AnimeName, 0)
-
-	query := `SELECT an.id, an.created_at, an.updated_at, an.name FROM anime_names an
-	JOIN rel_anime_anime_names ran ON an.id = ran.anime_names_id
-	WHERE ran.anime_id = $1`
-
-	rows, err := tx.Query(
-		query,
-		params.Id,
-	)
-	if err != nil {
-		log.Printf("error: DbsAnimeNames SelectAllNamesByAnimeId: Query: %v", err)
-		return nil, err
-	}
-	defer func() {
-		err := rows.Close()
-		if err != nil {
-			log.Printf("error: DbsAnimeNames SelectAllNamesByAnimeId: close rows: %v", err)
-		}
-	}()
-
-	for rows.Next() == true {
-		animeName := &AnimeName{}
-		err := rows.Scan(
-			&animeName.Id,
-			&animeName.CreatedAt,
-			&animeName.UpdatedAt,
-			&animeName.Name,
-		)
-		if err != nil {
-			log.Printf("error: DbsAnimeNames SelectAllNamesByAnimeId: Scan: %v", err)
-			return nil, err
-		}
-		animeNames = append(animeNames, animeName)
-	}
-
-	return animeNames, nil
 }

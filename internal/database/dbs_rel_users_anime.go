@@ -51,6 +51,9 @@ func (d *PgDbsUsersAnime) InsertRel(rel *RelUsersAnime) error {
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: dbs rel_users_anime InsertRel: Rollback: %v", err)
 		}
 	}()

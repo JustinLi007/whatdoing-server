@@ -50,6 +50,9 @@ func (d *PgDbsJwt) Insert(userId uuid.UUID, ttl_token, ttl_refresh time.Duration
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: dbs jwt CreateToken failed rollback: %v", err)
 		}
 	}()
@@ -121,6 +124,9 @@ func (d *PgDbsJwt) Delete(user *User) error {
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: dbs jwt Delete failed rollback: %v", err)
 		}
 	}()

@@ -27,5 +27,14 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Post("/contents/anime/{contentId}", s.handlerAnime.UpdateAnime)
 	})
 
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Use(s.middleware.RequireUser)
+
+		r.Post("/library/anime", s.handlerUserLibraryAnime.AddToLibrary)
+		r.Post("/library/anime/progress", s.handlerUserLibraryAnime.SetProgress)
+		r.Get("/library/anime/progress", s.handlerUserLibraryAnime.GetProgress)
+	})
+
 	return r
 }

@@ -81,14 +81,19 @@ func (d *PgDbsUsers) CreateUser(user *User) (*User, error) {
 	newUser := &User{
 		Password: Password{},
 	}
+
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
+		log.Printf("error: DbsUsers CreateUser: Conn: %v", err)
 		return nil, err
 	}
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
-			log.Printf("error: dbsUsers CreateUser Rollback: %v", err)
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: DbsUsers CreateUser: Rollback: %v", err)
 		}
 	}()
 
@@ -114,8 +119,15 @@ func (d *PgDbsUsers) CreateUser(user *User) (*User, error) {
 		return nil, err
 	}
 
+	err = InsertUserLibrary(tx, newUser)
+	if err != nil {
+		log.Printf("error: DbsUsers CreateUser: InsertUserLibraryStarted: %v", err)
+		return nil, err
+	}
+
 	err = tx.Commit()
 	if err != nil {
+		log.Printf("error: DbsUsers CreateUser: Commit: %v", err)
 		return nil, err
 	}
 
@@ -202,6 +214,9 @@ func (d *PgDbsUsers) AuthenticateWithJwt(jwt *tokens.Jwt) (*User, error) {
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: dbsUsers AuthenticateByJwt Rollback: %v", err)
 		}
 	}()

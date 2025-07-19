@@ -23,7 +23,7 @@ type Anime struct {
 
 type DbsAnime interface {
 	InsertAnime(anime *Anime) (*Anime, error)
-	GetAnimeById(params *Anime) (*Anime, error)
+	GetAnimeById(reqAnime *Anime) (*Anime, error)
 	GetAllAnime() ([]*Anime, error)
 	UpdateAnime(anime *Anime) error
 }
@@ -61,6 +61,9 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: DbsAnime InsertAnime: Rollback: %v", err)
 		}
 	}()
@@ -109,7 +112,7 @@ func (d *PgDbsAnime) InsertAnime(anime *Anime) (*Anime, error) {
 	return result, nil
 }
 
-func (d *PgDbsAnime) GetAnimeById(params *Anime) (*Anime, error) {
+func (d *PgDbsAnime) GetAnimeById(reqAnime *Anime) (*Anime, error) {
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
 		return nil, err
@@ -124,13 +127,14 @@ func (d *PgDbsAnime) GetAnimeById(params *Anime) (*Anime, error) {
 		}
 	}()
 
-	existingAnime, err := SelectAnimeJoinName(tx, params)
+	dbAnime, err := SelectAnimeJoinName(tx, reqAnime)
 	if err != nil {
 		log.Printf("error: DbsAnime GetAnimeById: SelectAnimeJoinName: %v", err)
 		return nil, err
 	}
 
-	altNames, err := SelectAllNamesByAnimeId(tx, params)
+	temp := []*Anime{dbAnime}
+	allNames, err := SelectAnimeNames(tx, temp)
 	if err != nil {
 		log.Printf("error: DbsAnime GetAnimeById: SelectAllNamesByAnimeId: %v", err)
 		return nil, err
@@ -142,9 +146,14 @@ func (d *PgDbsAnime) GetAnimeById(params *Anime) (*Anime, error) {
 		return nil, err
 	}
 
-	existingAnime.AlternativeNames = altNames
+	namesMap := buildNamesMap(allNames)
+	if altNames, ok := namesMap[dbAnime.Id]; ok {
+		dbAnime.AlternativeNames = altNames
+	} else {
+		dbAnime.AlternativeNames = make([]*AnimeName, 0)
+	}
 
-	return existingAnime, nil
+	return dbAnime, nil
 }
 
 func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
@@ -219,6 +228,9 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 	defer func() {
 		err := tx.Rollback()
 		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
 			log.Printf("error: DbsAnime UpdateAnime: Rollback: %v", err)
 		}
 	}()
