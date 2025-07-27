@@ -19,63 +19,11 @@ type RelAnimeUserLibrary struct {
 	UserLibraryId uuid.UUID `json:"-"`
 }
 
-const (
-	STARTED     = "started"
-	NOT_STARTED = "not-started"
-	COMPLETED   = "completed"
-)
-
-type options struct {
-	relId       uuid.UUID
-	animeId     uuid.UUID
-	status      string
-	withRelId   bool
-	withAnimeId bool
-}
-
-func newOptions() *options {
-	options := &options{
-		status:    "",
-		withRelId: false,
-	}
-	return options
-}
-
-type OptionsFunc func(o *options)
-
-func WithRelId(id uuid.UUID) OptionsFunc {
-	return func(o *options) {
-		o.withRelId = true
-		o.relId = id
-	}
-}
-
-func WithAnimeId(id uuid.UUID) OptionsFunc {
-	return func(o *options) {
-		o.withAnimeId = true
-		o.animeId = id
-	}
-}
-
-func WithStatus(status string) OptionsFunc {
-	return func(o *options) {
-		switch status {
-		case STARTED:
-			o.status = STARTED
-		case NOT_STARTED:
-			o.status = NOT_STARTED
-		case COMPLETED:
-			o.status = COMPLETED
-		default:
-			o.status = ""
-		}
-	}
-}
-
 type DbsRelAnimeUserLibrary interface {
 	AddToLibrary(reqUser *User, reqAnime *Anime) (*RelAnimeUserLibrary, error)
 	UpdateProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error)
 	GetProgress(reqUser *User, opts ...OptionsFunc) ([]*RelAnimeUserLibrary, error)
+	RemoveProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) error
 }
 
 type PgDbsRelAnimeUserLibrary struct {
@@ -272,6 +220,11 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 	}
 
 	return result, nil
+}
+
+func (d *PgDbsRelAnimeUserLibrary) RemoveProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) error {
+	// TODO: implement
+	return nil
 }
 
 func InsertRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqAnime *Anime) (*RelAnimeUserLibrary, error) {
