@@ -26,25 +26,34 @@ const (
 )
 
 type options struct {
-	id     uuid.UUID
-	status string
-	withId bool
+	relId       uuid.UUID
+	animeId     uuid.UUID
+	status      string
+	withRelId   bool
+	withAnimeId bool
 }
 
 func newOptions() *options {
 	options := &options{
-		status: "",
-		withId: false,
+		status:    "",
+		withRelId: false,
 	}
 	return options
 }
 
 type OptionsFunc func(o *options)
 
-func WithId(id uuid.UUID) OptionsFunc {
+func WithRelId(id uuid.UUID) OptionsFunc {
 	return func(o *options) {
-		o.withId = true
-		o.id = id
+		o.withRelId = true
+		o.relId = id
+	}
+}
+
+func WithAnimeId(id uuid.UUID) OptionsFunc {
+	return func(o *options) {
+		o.withAnimeId = true
+		o.animeId = id
 	}
 }
 
@@ -197,13 +206,23 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 	}
 
 	result := make([]*RelAnimeUserLibrary, 0)
-	if options.withId {
+	if options.withRelId {
 		reqRelAnimeUserLibrary := &RelAnimeUserLibrary{
-			Id: options.id,
+			Id: options.relId,
 		}
 		dbRelAnimeUserLibrary, err := SelectRelAnimeUserLibraryById(tx, reqUser, reqRelAnimeUserLibrary)
 		if err != nil {
 			log.Printf("error: DbsRelAnimeUserLibrary GetProgress: SelectRelAnimeUserLibraryById: %v", err)
+			return nil, err
+		}
+		result = append(result, dbRelAnimeUserLibrary)
+	} else if options.withAnimeId {
+		reqAnime := &Anime{
+			Id: options.animeId,
+		}
+		dbRelAnimeUserLibrary, err := SelectRelAnimeUserLibraryByAnimeId(tx, reqUser, reqAnime)
+		if err != nil {
+			log.Printf("error: DbsRelAnimeUserLibrary GetProgress: SelectRelAnimeUserLibraryByAnimeId: %v", err)
 			return nil, err
 		}
 		result = append(result, dbRelAnimeUserLibrary)
@@ -364,6 +383,58 @@ func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary
 	)
 	if err != nil {
 		log.Printf("error: DbsRelAnimeUserLibrary UpdateRelAnimeUserLibrary: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func SelectRelAnimeUserLibraryByAnimeId(tx *sql.Tx, reqUser *User, reqAnime *Anime) (*RelAnimeUserLibrary, error) {
+	result := &RelAnimeUserLibrary{
+		Anime: &Anime{
+			AlternativeNames: make([]*AnimeName, 0),
+		},
+	}
+
+	query := `
+	WITH user_lib AS (
+		SELECT * FROM user_library WHERE user_id = $1
+	)
+	SELECT
+	ul.id, ul.created_at, ul.updated_at, ul.status, ul.episode,
+	a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
+	an.id, an.created_at, an.updated_at, an.name
+	FROM rel_anime_user_library ul
+	JOIN anime a ON ul.anime_id = a.id
+	JOIN anime_names an ON a.anime_names_id = an.id
+	JOIN user_lib ON ul.user_library_id = user_lib.id
+	WHERE a.id = $2
+	`
+
+	err := tx.QueryRow(
+		query,
+		reqUser.Id,
+		reqAnime.Id,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Status,
+		&result.Episode,
+		&result.Anime.Id,
+		&result.Anime.CreatedAt,
+		&result.Anime.UpdatedAt,
+		&result.Anime.Kind,
+		&result.Anime.Episodes,
+		&result.Anime.Description,
+		&result.Anime.ImageUrl,
+		&result.Anime.AnimeName.Id,
+		&result.Anime.AnimeName.CreatedAt,
+		&result.Anime.AnimeName.UpdatedAt,
+		&result.Anime.AnimeName.Name,
+	)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary SelectRelAnimeUserLibraryByAnimeId: Scan: %v", err)
 		return nil, err
 	}
 

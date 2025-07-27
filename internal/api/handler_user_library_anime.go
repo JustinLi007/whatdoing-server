@@ -98,15 +98,23 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 
 	opts := make([]database.OptionsFunc, 0)
 	queries := r.URL.Query()
-	idStr := queries.Get("id")
+	relIdStr := queries.Get("rel_id")
+	animeIdStr := queries.Get("anime_id")
 	status := strings.ToLower(strings.TrimSpace(queries.Get("status")))
 
 	opts = append(opts, database.WithStatus(status))
-	err := uuid.Validate(idStr)
+	err := uuid.Validate(relIdStr)
 	if err == nil {
-		id, err := uuid.Parse(idStr)
+		id, err := uuid.Parse(relIdStr)
 		if err == nil {
-			opts = append(opts, database.WithId(id))
+			opts = append(opts, database.WithRelId(id))
+		}
+	}
+	err = uuid.Validate(animeIdStr)
+	if err == nil {
+		id, err := uuid.Parse(animeIdStr)
+		if err == nil {
+			opts = append(opts, database.WithAnimeId(id))
 		}
 	}
 
