@@ -291,14 +291,14 @@ func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary
 		SELECT * FROM user_library WHERE user_id = $1
 	),
 	updated_rel AS (
-		UPDATE rel_anime_user_library
+		UPDATE rel_anime_user_library ul
 		SET
 			updated_at = $3,
 			status = $4,
 			episode = $5
 		FROM user_lib
-		WHERE id = $2 AND user_library_id = user_lib.id
-		RETURNING id, created_at, updated_at, status, episode, anime_id
+		WHERE ul.id = $2 AND ul.user_library_id = user_lib.id
+		RETURNING ul.id, ul.created_at, ul.updated_at, ul.status, ul.episode, ul.anime_id
 	)
 	SELECT
 	updated_rel.id, updated_rel.created_at, updated_rel.updated_at, updated_rel.status, updated_rel.episode,
