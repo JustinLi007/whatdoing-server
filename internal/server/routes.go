@@ -24,7 +24,7 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireUser)
 
 		r.Post("/contents/anime", s.handlerAnime.NewAnime)
-		r.Post("/contents/anime/{contentId}", s.handlerAnime.UpdateAnime)
+		r.Put("/contents/anime/{contentId}", s.handlerAnime.UpdateAnime)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -32,7 +32,8 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireUser)
 
 		r.Post("/library/anime", s.handlerUserLibraryAnime.AddToLibrary)
-		r.Post("/library/anime/progress", s.handlerUserLibraryAnime.SetProgress)
+		r.Put("/library/anime/progress", s.handlerUserLibraryAnime.SetProgress)
+		r.Delete("/library/anime/progress", s.handlerUserLibraryAnime.RemoveProgress)
 		r.Get("/library/anime/progress", s.handlerUserLibraryAnime.GetProgress)
 	})
 

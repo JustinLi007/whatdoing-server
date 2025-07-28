@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ type HandlerUserLibraryAnime interface {
 	AddToLibrary(w http.ResponseWriter, r *http.Request)
 	GetProgress(w http.ResponseWriter, r *http.Request)
 	SetProgress(w http.ResponseWriter, r *http.Request)
+	RemoveProgress(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerUserLibraryAnime struct {
@@ -48,7 +50,7 @@ func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Re
 	}
 
 	type AddToLibraryRequest struct {
-		AnimeId *uuid.UUID `json:"anime_id"`
+		AnimeId *string `json:"anime_id"`
 	}
 
 	var req AddToLibraryRequest
@@ -63,6 +65,24 @@ func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Re
 
 	if req.AnimeId == nil {
 		log.Printf("error: Handler: UserLibraryAnime: AddToLibrary: missing anime id")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "bad request",
+		})
+		return
+	}
+
+	err = uuid.Validate(*req.AnimeId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: AddToLibrary: Validate: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	animeId, err := uuid.Parse(*req.AnimeId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: AddToLibrary: Parse: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
@@ -70,7 +90,7 @@ func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Re
 	}
 
 	reqAnime := &database.Anime{
-		Id: *req.AnimeId,
+		Id: animeId,
 	}
 	dbRelAnimeUserLibrary, err := h.dbsRelAnimeUserLibrary.AddToLibrary(user, reqAnime)
 	if err != nil {
@@ -98,7 +118,7 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 
 	opts := make([]database.OptionsFunc, 0)
 	queries := r.URL.Query()
-	relIdStr := queries.Get("rel_id")
+	relIdStr := queries.Get("progress_id")
 	animeIdStr := queries.Get("anime_id")
 	status := strings.ToLower(strings.TrimSpace(queries.Get("status")))
 
@@ -119,7 +139,9 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 	}
 
 	progress, err := h.dbsRelAnimeUserLibrary.GetProgress(user, opts...)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		progress = make([]*database.RelAnimeUserLibrary, 0)
+	} else if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: GetProgress: GetProgress: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
@@ -143,9 +165,9 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 	}
 
 	type UpdateRequest struct {
-		ProgressId *uuid.UUID `json:"progress_id"`
-		Status     *string    `json:"status"`
-		Episode    *int       `json:"episode"`
+		ProgressId *string `json:"progress_id"`
+		Status     *string `json:"status"`
+		Episode    *int    `json:"episode"`
 	}
 
 	var req UpdateRequest
@@ -160,11 +182,30 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 
 	if req.ProgressId == nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing progress id")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "bad request",
+		})
+		return
+	}
+
+	err = uuid.Validate(*req.ProgressId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Validate: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
 		return
 	}
+
+	progressId, err := uuid.Parse(*req.ProgressId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Parse: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
 	if req.Status == nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing status")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
@@ -181,7 +222,7 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 	}
 
 	reqRelAnimeUserLibrary := &database.RelAnimeUserLibrary{
-		Id:      *req.ProgressId,
+		Id:      progressId,
 		Status:  *req.Status,
 		Episode: *req.Episode,
 	}
@@ -197,4 +238,69 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"progress": dbProgress,
 	})
+}
+
+func (h *handlerUserLibraryAnime) RemoveProgress(w http.ResponseWriter, r *http.Request) {
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: GetUser: nil")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "bad request",
+		})
+		return
+	}
+
+	type UpdateRequest struct {
+		ProgressId *string `json:"progress_id"`
+	}
+
+	var req UpdateRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: Decode: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	if req.ProgressId == nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: missing progress id")
+		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+			"error": "bad request",
+		})
+		return
+	}
+
+	err = uuid.Validate(*req.ProgressId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: Validate: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	progressId, err := uuid.Parse(*req.ProgressId)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: Parse: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	reqRelAnimeUserLibrary := &database.RelAnimeUserLibrary{
+		Id: progressId,
+	}
+	err = h.dbsRelAnimeUserLibrary.RemoveProgress(user, reqRelAnimeUserLibrary)
+	if err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: RemoveProgress: %v", err)
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
 }

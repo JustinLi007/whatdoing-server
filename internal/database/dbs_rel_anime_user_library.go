@@ -223,7 +223,33 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 }
 
 func (d *PgDbsRelAnimeUserLibrary) RemoveProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) error {
-	// TODO: implement
+	tx, err := d.db.Conn().Begin()
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary RemoveProgress: Conn: %v", err)
+		return err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: DbsRelAnimeUserLibrary RemoveProgress: Rollback: %v", err)
+		}
+	}()
+
+	err = DeleteRelAnimeUserLibrary(tx, reqUser, reqRelAnimeUserLibrary)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary RemoveProgress: DeleteRelAnimeUserLibrary: %v", err)
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary RemoveProgress: Commit: %v", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -508,4 +534,38 @@ func SelectRelAnimeUserLibraryByStatus(tx *sql.Tx, reqUser *User, reqRelAnimeUse
 	}
 
 	return result, nil
+}
+
+func DeleteRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) error {
+	query := `
+	WITH user_lib AS (
+		SELECT * FROM user_library WHERE user_id = $1
+	)
+	DELETE FROM rel_anime_user_library ul
+	USING user_lib
+	WHERE ul.user_library_id = user_lib.id
+	AND ul.id = $2
+	`
+
+	queryResult, err := tx.Exec(
+		query,
+		reqUser.Id,
+		reqRelAnimeUserLibrary.Id,
+	)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary DeleteRelAnimeUserLibrary: Query: %v", err)
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary DeleteRelAnimeUserLibrary: RowsAffected: %v", err)
+		return err
+	}
+	if n == 0 {
+		log.Printf("error: DbsRelAnimeUserLibrary DeleteRelAnimeUserLibrary: RowsAffected: %v", sql.ErrNoRows)
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
