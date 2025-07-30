@@ -33,6 +33,7 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 
 		r.Post("/library/anime", s.handlerUserLibraryAnime.AddToLibrary)
 		r.Put("/library/anime/progress", s.handlerUserLibraryAnime.SetProgress)
+		r.Put("/library/anime/status", s.handlerUserLibraryAnime.SetStatus)
 		r.Delete("/library/anime/progress", s.handlerUserLibraryAnime.RemoveProgress)
 		r.Get("/library/anime/progress", s.handlerUserLibraryAnime.GetProgress)
 	})

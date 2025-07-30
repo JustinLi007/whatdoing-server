@@ -22,6 +22,7 @@ type RelAnimeUserLibrary struct {
 type DbsRelAnimeUserLibrary interface {
 	AddToLibrary(reqUser *User, reqAnime *Anime) (*RelAnimeUserLibrary, error)
 	UpdateProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error)
+	UpdateStatus(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error)
 	GetProgress(reqUser *User, opts ...OptionsFunc) ([]*RelAnimeUserLibrary, error)
 	RemoveProgress(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) error
 }
@@ -105,9 +106,9 @@ func (d *PgDbsRelAnimeUserLibrary) UpdateProgress(reqUser *User, reqRelAnimeUser
 		}
 	}()
 
-	dbRelAnimeUserLibrary, err := UpdateRelAnimeUserLibrary(tx, reqUser, reqRelAnimeUserLibrary)
+	dbRelAnimeUserLibrary, err := UpdateRelAnimeUserLibraryProgress(tx, reqUser, reqRelAnimeUserLibrary)
 	if err != nil {
-		log.Printf("error: DbsRelAnimeUserLibrary UpdateProgress: UpdateRelAnimeUserLibrary: %v", err)
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateProgress: UpdateRelAnimeUserLibraryProgress: %v", err)
 		return nil, err
 	}
 
@@ -121,6 +122,49 @@ func (d *PgDbsRelAnimeUserLibrary) UpdateProgress(reqUser *User, reqRelAnimeUser
 	err = tx.Commit()
 	if err != nil {
 		log.Printf("error: DbsRelAnimeUserLibrary UpdateProgress: Commit: %v", err)
+		return nil, err
+	}
+
+	namesMap := buildNamesMap(allNames)
+	if altNames, ok := namesMap[dbRelAnimeUserLibrary.Anime.Id]; ok {
+		dbRelAnimeUserLibrary.Anime.AlternativeNames = altNames
+	}
+
+	return dbRelAnimeUserLibrary, nil
+}
+
+func (d *PgDbsRelAnimeUserLibrary) UpdateStatus(reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error) {
+	tx, err := d.db.Conn().Begin()
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateStatus: Conn: %v", err)
+		return nil, err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: DbsRelAnimeUserLibrary UpdateStatus: Rollback: %v", err)
+		}
+	}()
+
+	dbRelAnimeUserLibrary, err := UpdateRelAnimeUserLibraryStatus(tx, reqUser, reqRelAnimeUserLibrary)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateStatus: UpdateRelAnimeUserLibraryStatus: %v", err)
+		return nil, err
+	}
+
+	temp := []*Anime{dbRelAnimeUserLibrary.Anime}
+	allNames, err := SelectAnimeNames(tx, temp)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateStatus: SelectAnimeNames: %v", err)
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateStatus: Commit: %v", err)
 		return nil, err
 	}
 
@@ -305,7 +349,7 @@ func InsertRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqAnime *Anime) (*Rel
 	return result, nil
 }
 
-func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error) {
+func UpdateRelAnimeUserLibraryProgress(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error) {
 	result := &RelAnimeUserLibrary{
 		Anime: &Anime{
 			AlternativeNames: make([]*AnimeName, 0),
@@ -320,8 +364,7 @@ func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary
 		UPDATE rel_anime_user_library ul
 		SET
 			updated_at = $3,
-			status = $4,
-			episode = $5
+			episode = $4
 		FROM user_lib
 		WHERE ul.id = $2 AND ul.user_library_id = user_lib.id
 		RETURNING ul.id, ul.created_at, ul.updated_at, ul.status, ul.episode, ul.anime_id
@@ -340,7 +383,6 @@ func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary
 		reqUser.Id,
 		reqRelAnimeUserLibrary.Id,
 		time.Now(),
-		reqRelAnimeUserLibrary.Status,
 		reqRelAnimeUserLibrary.Episode,
 	).Scan(
 		&result.Id,
@@ -361,7 +403,68 @@ func UpdateRelAnimeUserLibrary(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary
 		&result.Anime.AnimeName.Name,
 	)
 	if err != nil {
-		log.Printf("error: DbsRelAnimeUserLibrary UpdateRelAnimeUserLibrary: Query: %v", err)
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateRelAnimeUserLibraryProgress: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func UpdateRelAnimeUserLibraryStatus(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *RelAnimeUserLibrary) (*RelAnimeUserLibrary, error) {
+	result := &RelAnimeUserLibrary{
+		Anime: &Anime{
+			AlternativeNames: make([]*AnimeName, 0),
+		},
+	}
+
+	query := `
+	WITH user_lib AS (
+		SELECT * FROM user_library WHERE user_id = $1
+	),
+	updated_rel AS (
+		UPDATE rel_anime_user_library ul
+		SET
+			updated_at = $3,
+			status = $4
+		FROM user_lib
+		WHERE ul.id = $2 AND ul.user_library_id = user_lib.id
+		RETURNING ul.id, ul.created_at, ul.updated_at, ul.status, ul.episode, ul.anime_id
+	)
+	SELECT
+	updated_rel.id, updated_rel.created_at, updated_rel.updated_at, updated_rel.status, updated_rel.episode,
+	anime.id, anime.created_at, anime.updated_at, anime.kind, anime.episodes, anime.description, anime.image_url,
+	anime_names.id, anime_names.created_at, anime_names.updated_at, anime_names.name
+	FROM updated_rel
+	JOIN anime ON updated_rel.anime_id = anime.id
+	JOIN anime_names ON anime.anime_names_id = anime_names.id
+	`
+
+	err := tx.QueryRow(
+		query,
+		reqUser.Id,
+		reqRelAnimeUserLibrary.Id,
+		time.Now(),
+		reqRelAnimeUserLibrary.Status,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Status,
+		&result.Episode,
+		&result.Anime.Id,
+		&result.Anime.CreatedAt,
+		&result.Anime.UpdatedAt,
+		&result.Anime.Kind,
+		&result.Anime.Episodes,
+		&result.Anime.Description,
+		&result.Anime.ImageUrl,
+		&result.Anime.AnimeName.Id,
+		&result.Anime.AnimeName.CreatedAt,
+		&result.Anime.AnimeName.UpdatedAt,
+		&result.Anime.AnimeName.Name,
+	)
+	if err != nil {
+		log.Printf("error: DbsRelAnimeUserLibrary UpdateRelAnimeUserLibraryStatus: Query: %v", err)
 		return nil, err
 	}
 
