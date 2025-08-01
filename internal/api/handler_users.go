@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -18,6 +17,7 @@ type HandlerUsers interface {
 	SignUp(w http.ResponseWriter, r *http.Request)
 	GetUserById(w http.ResponseWriter, r *http.Request)
 	Login(w http.ResponseWriter, r *http.Request)
+	CheckSession(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerUsers struct {
@@ -107,10 +107,10 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 
 	utils.SetCookie(w, "whatdoing-jwt", token.Token.PlainText)
 	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
-	url := "/home/"
+	// FIX: change payload
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"user": createdUser,
-		"next": fmt.Sprintf("%s%s", url, createdUser.Id),
+		"next": "/home",
 	})
 }
 
@@ -143,6 +143,7 @@ func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: idk what I want this handler for...
 	if user.Id != userId {
 		log.Printf("error: handler_users GetUserById user not equal requesting user")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
@@ -229,9 +230,23 @@ func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 
 	utils.SetCookie(w, "whatdoing-jwt", token.Token.PlainText)
 	utils.SetCookie(w, "whatdoing-jwt-refresh", token.RefreshToken.PlainText)
-	url := "/home/"
+	// FIX: change payload
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"user": existingUser,
-		"next": fmt.Sprintf("%s%s", url, existingUser.Id),
+		"next": "/home",
+	})
+}
+func (h *handlerUsers) CheckSession(w http.ResponseWriter, r *http.Request) {
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: handler_users CheckSession: user nil")
+		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"user": user,
 	})
 }

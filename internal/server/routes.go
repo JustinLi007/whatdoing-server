@@ -14,7 +14,10 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireJwt)
 		r.Use(s.middleware.RequireUser)
 
+		// TODO: may have to change this, not sure what I want this for yet...
 		r.Get("/users/{userId}", s.handlerUsers.GetUserById)
+
+		r.Get("/users/session", s.handlerUsers.CheckSession)
 	})
 
 	r.Get("/contents/anime", s.handlerAnime.GetAllAnime)
