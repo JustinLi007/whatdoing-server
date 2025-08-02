@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 type DbsJwt interface {
 	Insert(userId uuid.UUID, ttl_token, ttl_refresh time.Duration, scope string) (*tokens.Jwt, error)
-	Get(user *User) (*tokens.Jwt, error)
+	Get(reqUser *User) (*tokens.Jwt, error)
 	Delete(user *User) error
 }
 
@@ -85,35 +86,35 @@ func (d *PgDbsJwt) Insert(userId uuid.UUID, ttl_token, ttl_refresh time.Duration
 	return token, nil
 }
 
-func (d *PgDbsJwt) Get(user *User) (*tokens.Jwt, error) {
-	existingToken := &tokens.Jwt{
-		Token:        &tokens.Token{},
-		RefreshToken: &tokens.Token{},
-	}
-
-	query := `SELECT * FROM jwt
-	WHERE user_id = $1
-	ORDER BY created_at DESC
-	LIMIT 1`
-
-	err := d.db.Conn().QueryRow(
-		query,
-		user.Id,
-	).Scan(
-		&existingToken.Id,
-		&existingToken.CreatedAt,
-		&existingToken.UpdatedAt,
-		&existingToken.Token.Hash,
-		&existingToken.RefreshToken.Hash,
-		&existingToken.RefreshToken.Expiry,
-		&existingToken.Scope,
-		&existingToken.UserId,
-	)
+func (d *PgDbsJwt) Get(reqUser *User) (*tokens.Jwt, error) {
+	tx, err := d.db.Conn().Begin()
 	if err != nil {
+		log.Printf("error: Dbs: Jwt: Get: Conn: %v", err)
+		return nil, err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: Dbs: Jwt: Get: Rollback: %v", err)
+		}
+	}()
+
+	dbJwt, err := SelectJwtByUserId(tx, reqUser)
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: Get: SelectJwt: %v", err)
 		return nil, err
 	}
 
-	return existingToken, nil
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: Get: Commit: %v", err)
+		return nil, err
+	}
+
+	return dbJwt, nil
 }
 
 func (d *PgDbsJwt) Delete(user *User) error {
@@ -154,4 +155,36 @@ func (d *PgDbsJwt) Delete(user *User) error {
 	}
 
 	return nil
+}
+
+func SelectJwtByUserId(tx *sql.Tx, reqUser *User) (*tokens.Jwt, error) {
+	result := &tokens.Jwt{
+		Token:        &tokens.Token{},
+		RefreshToken: &tokens.Token{},
+	}
+
+	query := `SELECT * FROM jwt
+	WHERE user_id = $1
+	ORDER BY created_at DESC
+	LIMIT 1`
+
+	err := tx.QueryRow(
+		query,
+		reqUser.Id,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Token.Hash,
+		&result.RefreshToken.Hash,
+		&result.RefreshToken.Expiry,
+		&result.Scope,
+		&result.UserId,
+	)
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: SelectJwt: Scan: %v", err)
+		return nil, err
+	}
+
+	return result, nil
 }

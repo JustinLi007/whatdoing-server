@@ -20,6 +20,13 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Get("/users/session", s.handlerUsers.CheckSession)
 	})
 
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Use(s.middleware.RequireUser)
+
+		r.Post("/tokens/refresh", s.handlerJwt.RefreshJwt)
+	})
+
 	r.Get("/contents/anime", s.handlerAnime.GetAllAnime)
 	r.Get("/contents/anime/{contentId}", s.handlerAnime.GetAnime)
 	r.Group(func(r chi.Router) {
