@@ -77,5 +77,7 @@ func (h *handlerJwt) RefreshJwt(w http.ResponseWriter, r *http.Request) {
 	utils.SetCookie(w, "whatdoing-jwt", newJwt.Token.PlainText)
 	utils.SetCookie(w, "whatdoing-jwt-refresh", newJwt.RefreshToken.PlainText)
 	err = utils.WriteJson(w, http.StatusOK, utils.Envelope{})
-	log.Printf("error: Handler: Jwt: RefreshJwt: payload: WriteJson: %v", err)
+	if err != nil {
+		log.Printf("error: Handler: Jwt: RefreshJwt: payload: WriteJson: %v", err)
+	}
 }

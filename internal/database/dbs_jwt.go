@@ -13,7 +13,8 @@ import (
 type DbsJwt interface {
 	Insert(userId uuid.UUID, ttl_token, ttl_refresh time.Duration, scope string) (*tokens.Jwt, error)
 	Get(reqUser *User) (*tokens.Jwt, error)
-	Delete(user *User) error
+	Delete(reqUser *User, reqJwt *tokens.Jwt) error
+	DeleteExpired() error
 }
 
 type PgDbsJwt struct {
@@ -117,9 +118,10 @@ func (d *PgDbsJwt) Get(reqUser *User) (*tokens.Jwt, error) {
 	return dbJwt, nil
 }
 
-func (d *PgDbsJwt) Delete(user *User) error {
+func (d *PgDbsJwt) Delete(reqUser *User, reqJwt *tokens.Jwt) error {
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
+		log.Printf("error: Dbs: Jwt: Delete: Conn: %v", err)
 		return err
 	}
 	defer func() {
@@ -128,29 +130,50 @@ func (d *PgDbsJwt) Delete(user *User) error {
 			if err.Error() == "sql: transaction has already been committed or rolled back" {
 				return
 			}
-			log.Printf("error: dbs jwt Delete failed rollback: %v", err)
+			log.Printf("error: Dbs: Jwt: Delete: Rollback: %v", err)
 		}
 	}()
 
-	query := `DELETE FROM jwt
-	WHERE user_id = $1`
-
-	result, err := tx.Exec(
-		query,
-	)
+	err = DeleteJwt(tx, reqUser, reqJwt)
 	if err != nil {
+		log.Printf("error: Dbs: Jwt: Delete: DeleteJwt: %v", err)
 		return err
-	}
-
-	n, err := result.RowsAffected()
-	if err == nil {
-		if n == 0 {
-			return errors.New("error: dbs jwt Delete, failed to delete token(s).")
-		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
+		log.Printf("error: Dbs: Jwt: Delete: Commit: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (d *PgDbsJwt) DeleteExpired() error {
+	tx, err := d.db.Conn().Begin()
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteExpired: Conn: %v", err)
+		return err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: Dbs: Jwt: DeleteExpired: Rollback: %v", err)
+		}
+	}()
+
+	err = DeleteExpired(tx)
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteExpired: DeleteExpired: %v", err)
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteExpired: Commit: %v", err)
 		return err
 	}
 
@@ -187,4 +210,67 @@ func SelectJwtByUserId(tx *sql.Tx, reqUser *User) (*tokens.Jwt, error) {
 	}
 
 	return result, nil
+}
+
+func DeleteJwt(tx *sql.Tx, reqUser *User, reqJwt *tokens.Jwt) error {
+	query := `
+	DELETE FROM jwt
+	WHERE token = $1
+	AND user_id = $2
+	`
+
+	log.Printf(reqJwt.Token.PlainText)
+	reqJwtHash := tokens.HashFromPlainText(reqJwt.Token.PlainText)
+
+	queryResult, err := tx.Exec(
+		query,
+		reqJwtHash[:],
+		reqUser.Id,
+	)
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteJwt: Query: %v", err)
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteJwt: RowsAffected: %v", err)
+		return err
+	}
+
+	if n == 0 {
+		log.Printf("error: Dbs: Jwt: DeleteJwt: RowsAffected: %v", n)
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func DeleteExpired(tx *sql.Tx) error {
+	query := `
+	DELETE FROM jwt
+	WHERE refresh_token_expiration > $1
+	`
+
+	queryResult, err := tx.Exec(
+		query,
+		time.Now(),
+	)
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteExpired: Query: %v", err)
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err != nil {
+		log.Printf("error: Dbs: Jwt: DeleteExpired: RowsAffected: %v", err)
+		return err
+	}
+
+	if n == 0 {
+		log.Printf("error: Dbs: Jwt: DeleteJwt: RowsAffected: %v", n)
+		return sql.ErrNoRows
+	}
+
+	return nil
 }

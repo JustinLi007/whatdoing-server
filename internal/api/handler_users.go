@@ -9,15 +9,13 @@ import (
 	"github.com/JustinLi007/whatdoing-server/internal/database"
 	"github.com/JustinLi007/whatdoing-server/internal/tokens"
 	"github.com/JustinLi007/whatdoing-server/internal/utils"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type HandlerUsers interface {
 	SignUp(w http.ResponseWriter, r *http.Request)
-	GetUserById(w http.ResponseWriter, r *http.Request)
 	Login(w http.ResponseWriter, r *http.Request)
 	CheckSession(w http.ResponseWriter, r *http.Request)
+	Logout(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerUsers struct {
@@ -114,58 +112,6 @@ func (h *handlerUsers) SignUp(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handlerUsers) GetUserById(w http.ResponseWriter, r *http.Request) {
-	user := utils.GetUser(r)
-	if user == nil {
-		log.Printf("error: handler users GetUserById: user is nil")
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	userIdStr := chi.URLParam(r, "userId")
-	err := uuid.Validate(userIdStr)
-	if err != nil {
-		log.Printf("error: handler_users GetUserById validate userIdStr: %v", err)
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "bad request",
-		})
-		return
-	}
-
-	userId, err := uuid.Parse(userIdStr)
-	if err != nil {
-		log.Printf("error: handler_users GetUserById parse userIdStr: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	// TODO: idk what I want this handler for...
-	if user.Id != userId {
-		log.Printf("error: handler_users GetUserById user not equal requesting user")
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	existingUser, err := h.dbsUsers.GetUserById(userId)
-	if err != nil {
-		log.Printf("error: handler_users GetUserById dbs.GetUserById: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"user": existingUser,
-	})
-}
-
 func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 	type ValidateRequest struct {
 		Email    *string `json:"email"`
@@ -236,6 +182,7 @@ func (h *handlerUsers) Login(w http.ResponseWriter, r *http.Request) {
 		"next": "/home",
 	})
 }
+
 func (h *handlerUsers) CheckSession(w http.ResponseWriter, r *http.Request) {
 	user := utils.GetUser(r)
 	if user == nil {
@@ -249,4 +196,58 @@ func (h *handlerUsers) CheckSession(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
 		"user": user,
 	})
+}
+
+func (h *handlerUsers) Logout(w http.ResponseWriter, r *http.Request) {
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: Handler: Users: Logout: GetUser: user nil")
+		err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		log.Printf("error: Handler: Users: Logout: GetUser: WriteJson: %v", err)
+		return
+	}
+
+	cookie, err := r.Cookie("whatdoing-jwt")
+	if err != nil {
+		log.Printf("error: Handler: Users: Logout: Cookie: whatdoing-jwt: cookie nil")
+		err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		log.Printf("error: Handler: Users: Logout: Cookie: WriteJson: %v", err)
+		return
+	}
+
+	err = cookie.Valid()
+	if err != nil {
+		log.Printf("error: Handler: Users: Logout: Cookie: Valid: %v", err)
+		err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		log.Printf("error: Handler: Users: Logout: Cookie: Valid: WriteJson: %v", err)
+		return
+	}
+
+	reqJwt := &tokens.Jwt{
+		Token: &tokens.Token{
+			PlainText: cookie.Value,
+		},
+	}
+	err = h.dbsJwt.Delete(user, reqJwt)
+	if err != nil {
+		log.Printf("error: Handler: Users: Logout: Delete: %v", err)
+		err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		})
+		log.Printf("error: Handler: Users: Logout: Delete WriteJson: %v", err)
+		return
+	}
+
+	utils.DeleteCookie(w, "whatdoing-jwt")
+	utils.DeleteCookie(w, "whatdoing-jwt-refresh")
+	err = utils.WriteJson(w, http.StatusOK, utils.Envelope{})
+	if err != nil {
+		log.Printf("error: Handler: Users: Logout: payload: WriteJson: %v", err)
+	}
 }

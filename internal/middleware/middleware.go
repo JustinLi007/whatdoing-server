@@ -62,7 +62,14 @@ func (m *Middleware) RequireJwt(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie("whatdoing-jwt")
 		if err != nil {
-			log.Printf("error: middleware LoggedIn: jwt cookie: %v", err)
+			log.Printf("error: Middleware: RequireJwt: Cookie: %v", err)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		err = cookie.Valid()
+		if err != nil {
+			log.Printf("error: Middleware: RequireJwt: Cookie: Valid: %v", err)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -74,7 +81,7 @@ func (m *Middleware) RequireJwt(next http.Handler) http.Handler {
 		}
 		user, err := m.dbsUsers.AuthenticateWithJwt(jwtValidate)
 		if err != nil {
-			log.Printf("error: middleware LoggedIn: AuthenticateByJwt: %v", err)
+			log.Printf("error: Middleware: RequireJwt: AuthenticateWithJwt: %v", err)
 			next.ServeHTTP(w, r)
 			return
 		}
