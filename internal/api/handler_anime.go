@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -155,7 +154,7 @@ func (h *handlerAnime) NewAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"next": fmt.Sprintf("/contents/anime/%s", dbAnime.Id),
+		"anime": dbAnime,
 	})
 }
 
@@ -346,7 +345,5 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"next": fmt.Sprintf("/contents/anime/%s", animeId),
-	})
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
 }
