@@ -249,7 +249,7 @@ func DeleteJwt(tx *sql.Tx, reqUser *User, reqJwt *tokens.Jwt) error {
 func DeleteExpired(tx *sql.Tx) error {
 	query := `
 	DELETE FROM jwt
-	WHERE refresh_token_expiration > $1
+	WHERE refresh_token_expiration < $1
 	`
 
 	queryResult, err := tx.Exec(

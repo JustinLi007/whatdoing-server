@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,7 +24,7 @@ type Server struct {
 	handlerUserLibraryAnime api.HandlerUserLibraryAnime
 }
 
-func NewServer() *http.Server {
+func NewServer(ctx context.Context) *http.Server {
 	db, err := database.NewDb()
 	if err != nil {
 		log.Fatalf("error: Server NewServer NewDb: %v", err)
@@ -75,5 +76,25 @@ func NewServer() *http.Server {
 		WriteTimeout: time.Second * 30,
 	}
 
+	go RoutineRemoveExpiredJwt(ctx, dbsJwt)
+
 	return server
+}
+
+func RoutineRemoveExpiredJwt(ctx context.Context, dbsJwt database.DbsJwt) {
+	ticker := time.NewTicker(time.Hour)
+	for {
+		select {
+		case <-ticker.C:
+			log.Printf("info: Server: Routine: RoutineRemoveExpiredJwt: Execute")
+			err := dbsJwt.DeleteExpired()
+			if err != nil {
+				log.Printf("error: Server: Routine: RoutineRemoveExpiredJwt: DeleteExpired: %v", err)
+			}
+		case <-ctx.Done():
+			log.Printf("info: Server: Routine: RoutineRemoveExpiredJwt: Stop")
+			ticker.Stop()
+			return
+		}
+	}
 }
