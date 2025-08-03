@@ -192,15 +192,15 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 		}
 	}()
 
-	options := newOptions()
+	options := NewOptions()
 	for _, v := range opts {
 		v(options)
 	}
 
 	result := make([]*RelAnimeUserLibrary, 0)
-	if options.withRelId {
+	if options.RaulId != nil {
 		reqRelAnimeUserLibrary := &RelAnimeUserLibrary{
-			Id: options.relId,
+			Id: options.RaulId.Id,
 		}
 		dbRelAnimeUserLibrary, err := SelectRelAnimeUserLibraryById(tx, reqUser, reqRelAnimeUserLibrary)
 		if err != nil {
@@ -208,9 +208,9 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 			return nil, err
 		}
 		result = append(result, dbRelAnimeUserLibrary)
-	} else if options.withAnimeId {
+	} else if options.AnimeId != nil {
 		reqAnime := &Anime{
-			Id: options.animeId,
+			Id: options.AnimeId.Id,
 		}
 		dbRelAnimeUserLibrary, err := SelectRelAnimeUserLibraryByAnimeId(tx, reqUser, reqAnime)
 		if err != nil {
@@ -218,9 +218,9 @@ func (d *PgDbsRelAnimeUserLibrary) GetProgress(reqUser *User, opts ...OptionsFun
 			return nil, err
 		}
 		result = append(result, dbRelAnimeUserLibrary)
-	} else if options.status != "" {
+	} else if options.Status != nil {
 		reqRelAnimeUserLibrary := &RelAnimeUserLibrary{
-			Status: options.status,
+			Status: options.Status.StatusValue,
 		}
 		dbRelAnimeUserLibrary, err := SelectRelAnimeUserLibraryByStatus(tx, reqUser, reqRelAnimeUserLibrary)
 		if err != nil {

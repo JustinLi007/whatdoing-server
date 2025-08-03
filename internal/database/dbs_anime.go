@@ -3,9 +3,12 @@ package database
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/JustinLi007/whatdoing-server/internal/algo"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +27,7 @@ type Anime struct {
 type DbsAnime interface {
 	InsertAnime(anime *Anime) (*Anime, error)
 	GetAnimeById(reqAnime *Anime) (*Anime, error)
-	GetAllAnime() ([]*Anime, error)
+	GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, error)
 	UpdateAnime(anime *Anime) error
 }
 
@@ -156,7 +159,9 @@ func (d *PgDbsAnime) GetAnimeById(reqAnime *Anime) (*Anime, error) {
 	return dbAnime, nil
 }
 
-func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
+func (d *PgDbsAnime) GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, error) {
+	var err error
+
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
 		return nil, err
@@ -171,52 +176,95 @@ func (d *PgDbsAnime) GetAllAnime() ([]*Anime, error) {
 		}
 	}()
 
-	allAnime, err := SelectAllAnimeJoinName(tx)
+	options := NewOptions()
+	for _, v := range opts {
+		v(options)
+	}
+
+	// search - server
+	// sort - db
+	// ignore - db? what else will be included here in the future???
+
+	orderBy := SORT_ASC
+	if options.Sort != nil {
+		orderBy = options.Sort.SortValue
+	}
+
+	var msg string
+	animeList := make([]*Anime, 0)
+	if options.IgnoreInLibrary && reqUser != nil {
+		if animeList, err = SelectAnimeNotInLibrary(tx, reqUser, orderBy); err != nil {
+			msg = fmt.Sprintf("error: Dbs: Anime: GetAllAnime: SelectAnimeNotInLibrary: %v", err)
+		}
+	} else {
+		if animeList, err = SelectAllAnimeJoinName(tx, orderBy); err != nil {
+			msg = fmt.Sprintf("error: Dbs: Anime: GetAllAnime: SelectAllAnimeJoinName: %v", err)
+		}
+	}
 	if err != nil {
-		log.Printf("error: DbsAnime GetAllAnime: SelectAllAnimeJoinName: %v", err)
+		log.Printf("%v", msg)
 		return nil, err
 	}
 
-	allNames, err := SelectAllNamesAnime(tx)
+	allNames, err := SelectAnimeNames(tx, animeList)
 	if err != nil {
-		log.Printf("error: DbsAnime GetAllAnime: SelectAllNamesAnime: %v", err)
+		log.Printf("error: Dbs: Anime: GetAllAnime: SelectAnimeNames: %v", err)
 		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Printf("error: DbsAnime GetAllAnime: Commit: %v", err)
+		log.Printf("error: Dbs: Anime: GetAllAnime: Commit: %v", err)
 		return nil, err
 	}
 
-	namesMap := make(map[uuid.UUID][]*AnimeName)
-	for _, v := range allNames {
-		curId := v.AnimeId
-
-		_, ok := namesMap[curId]
-		if !ok {
-			namesMap[curId] = make([]*AnimeName, 0)
-		}
-
-		name := &AnimeName{
-			Id:        v.AnimeName.Id,
-			CreatedAt: v.AnimeName.CreatedAt,
-			UpdatedAt: v.AnimeName.UpdatedAt,
-			Name:      v.AnimeName.Name,
-		}
-
-		namesMap[curId] = append(namesMap[curId], name)
-	}
-
-	for k, v := range allAnime {
-		curId := v.Id
-		names, ok := namesMap[curId]
-		if ok {
-			allAnime[k].AlternativeNames = names
+	namesMap := buildNamesMap(allNames)
+	for k, v := range animeList {
+		if names, ok := namesMap[v.Id]; ok {
+			animeList[k].AlternativeNames = names
 		}
 	}
 
-	return allAnime, nil
+	if options.Search != nil {
+		foundKmp := func(anime *Anime, targetString string) bool {
+			idx := algo.Kmp(strings.ToLower(anime.AnimeName.Name), targetString)
+			if idx == -1 {
+				for _, v := range anime.AlternativeNames {
+					if idx = algo.Kmp(strings.ToLower(v.Name), targetString); idx != -1 {
+						break
+					}
+				}
+			}
+			return idx != -1
+		}
+
+		foundEditDistance := func(anime *Anime, targetString string, edits int) bool {
+			result := algo.EditDistance(strings.ToLower(anime.AnimeName.Name), targetString)
+			if result > edits {
+				for _, v := range anime.AlternativeNames {
+					result = algo.EditDistance(strings.ToLower(v.Name), targetString)
+					if result <= edits {
+						break
+					}
+				}
+			}
+			return result <= edits
+		}
+
+		filteredAnimeList := make([]*Anime, 0)
+		kmpMatch := false
+		editDistanceMatch := false
+		for _, v := range animeList {
+			kmpMatch = foundKmp(v, options.Search.SearchValue)
+			editDistanceMatch = foundEditDistance(v, options.Search.SearchValue, 5)
+			if kmpMatch || editDistanceMatch {
+				filteredAnimeList = append(filteredAnimeList, v)
+			}
+		}
+		animeList = filteredAnimeList
+	}
+
+	return animeList, nil
 }
 
 func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
@@ -335,13 +383,18 @@ func SelectAnimeJoinName(tx *sql.Tx, params *Anime) (*Anime, error) {
 	return existingAnime, nil
 }
 
-func SelectAllAnimeJoinName(tx *sql.Tx) ([]*Anime, error) {
+func SelectAllAnimeJoinName(tx *sql.Tx, orderBy string) ([]*Anime, error) {
 	animeList := make([]*Anime, 0)
 
-	query := `SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
+	query := fmt.Sprintf(`
+	SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
 	an.id, an.created_at, an.updated_at, an.name
 	FROM anime a
-	JOIN anime_names an ON a.anime_names_id = an.id`
+	JOIN anime_names an ON a.anime_names_id = an.id
+	ORDER BY an.name %s
+	`,
+		orderBy,
+	)
 
 	rows, err := tx.Query(query)
 	defer func() {
@@ -414,4 +467,65 @@ func UpdateAnimeById(tx *sql.Tx, params *Anime) error {
 	}
 
 	return nil
+}
+
+func SelectAnimeNotInLibrary(tx *sql.Tx, reqUser *User, orderBy string) ([]*Anime, error) {
+	result := make([]*Anime, 0)
+
+	query := fmt.Sprintf(`
+	WITH user_lib AS (
+		SELECT user_library.id FROM user_library WHERE user_id = $1
+	)
+	SELECT a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
+	an.id, an.created_at, an.updated_at, an.name
+	FROM anime a
+	JOIN anime_names an ON a.anime_names_id = an.id
+	WHERE a.id NOT IN (
+		SELECT raul.anime_id
+		FROM rel_anime_user_library raul,
+		user_lib
+		WHERE raul.user_library_id = user_lib.id
+	)
+	ORDER BY an.name %s
+	`,
+		orderBy,
+	)
+
+	queryRows, err := tx.Query(
+		query,
+		reqUser.Id,
+	)
+	if err != nil {
+		log.Printf("error: Dbs: Anime: SelectAnimeInLibrary: Query: %v", err)
+		return nil, err
+	}
+
+	for queryRows.Next() == true {
+		temp := &Anime{
+			AnimeName:        AnimeName{},
+			AlternativeNames: make([]*AnimeName, 0),
+		}
+
+		err := queryRows.Scan(
+			&temp.Id,
+			&temp.CreatedAt,
+			&temp.UpdatedAt,
+			&temp.Kind,
+			&temp.Episodes,
+			&temp.Description,
+			&temp.ImageUrl,
+			&temp.AnimeName.Id,
+			&temp.AnimeName.CreatedAt,
+			&temp.AnimeName.UpdatedAt,
+			&temp.AnimeName.Name,
+		)
+		if err != nil {
+			log.Printf("error: Dbs: Anime: SelectAnimeInLibrary: Scan: %v", err)
+			return nil, err
+		}
+
+		result = append(result, temp)
+	}
+
+	return result, nil
 }

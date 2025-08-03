@@ -1,6 +1,8 @@
 package database
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
 
 func buildNamesMap(allNames []*RelAnimeAnimeNames) map[uuid.UUID][]*AnimeName {
 	namesMap := make(map[uuid.UUID][]*AnimeName)

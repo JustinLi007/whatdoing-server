@@ -205,18 +205,47 @@ func (h *handlerAnime) GetAnime(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlerAnime) GetAllAnime(w http.ResponseWriter, r *http.Request) {
-	dbAnimeList, err := h.dbsAnime.GetAllAnime()
-	if err != nil {
-		log.Printf("error: handler anime GetAllAnime: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: Handler: Anime: GetAllAnime: GetUser: user nil")
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: Anime: GetAllAnime: GetUser: WriteJson: %v", err)
+		}
 		return
 	}
 
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"anime_list": dbAnimeList,
-	})
+	opts := make([]database.OptionsFunc, 0)
+	queries := r.URL.Query()
+
+	search := queries.Get("search")
+	sort := queries.Get("sort")
+	ignore := queries.Get("ignore")
+	opts = append(opts, database.WithSearch(search))
+	opts = append(opts, database.WithSort(sort))
+	opts = append(opts, database.WithIgnore(ignore))
+
+	log.Printf("search: '%v'", search)
+	log.Printf("sort: '%v'", sort)
+	log.Printf("ignore: '%v'", ignore)
+
+	dbAnimeList, err := h.dbsAnime.GetAllAnime(user, opts...)
+	if err != nil {
+		log.Printf("error: Handler: Anime: GetAllAnime: GetAllAnime: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: GetAllAnime: GetAllAnime: WriteJson: %v", err)
+		}
+		return
+	}
+
+	if err = utils.WriteJson(w, http.StatusOK, utils.Envelope{
+		"anime": dbAnimeList,
+	}); err != nil {
+		log.Printf("error: Handler: Anime: GetAllAnime: payload: WriteJson: %v", err)
+	}
 }
 
 func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {

@@ -1,58 +1,138 @@
 package database
 
 import (
+	"strings"
+
 	"github.com/google/uuid"
 )
 
 const (
-	STARTED     = "started"
-	NOT_STARTED = "not-started"
-	COMPLETED   = "completed"
+	STATUS_STARTED     = "started"
+	STATUS_NOT_STARTED = "not-started"
+	STATUS_COMPLETED   = "completed"
+
+	SORT_ASC  = "ASC"
+	SORT_DESC = "DESC"
 )
 
-type options struct {
-	relId       uuid.UUID
-	animeId     uuid.UUID
-	status      string
-	withRelId   bool
-	withAnimeId bool
+type RaulId struct {
+	Id uuid.UUID
 }
 
-func newOptions() *options {
-	options := &options{
-		status:    "",
-		withRelId: false,
+type AnimeId struct {
+	Id uuid.UUID
+}
+
+type ProgressStatus struct {
+	StatusValue string
+}
+
+type Search struct {
+	SearchValue string
+}
+
+type Sort struct {
+	SortValue string
+}
+
+type Options struct {
+	RaulId          *RaulId
+	AnimeId         *AnimeId
+	Status          *ProgressStatus
+	Search          *Search
+	Sort            *Sort
+	IgnoreInLibrary bool
+}
+
+func NewOptions() *Options {
+	options := &Options{
+		RaulId:          nil,
+		AnimeId:         nil,
+		Status:          nil,
+		IgnoreInLibrary: false,
 	}
 	return options
 }
 
-type OptionsFunc func(o *options)
+type OptionsFunc func(o *Options)
 
 func WithRelId(id uuid.UUID) OptionsFunc {
-	return func(o *options) {
-		o.withRelId = true
-		o.relId = id
+	return func(o *Options) {
+		o.RaulId = &RaulId{
+			Id: id,
+		}
 	}
 }
 
 func WithAnimeId(id uuid.UUID) OptionsFunc {
-	return func(o *options) {
-		o.withAnimeId = true
-		o.animeId = id
+	return func(o *Options) {
+		o.AnimeId = &AnimeId{
+			Id: id,
+		}
 	}
 }
 
-func WithStatus(status string) OptionsFunc {
-	return func(o *options) {
-		switch status {
-		case STARTED:
-			o.status = STARTED
-		case NOT_STARTED:
-			o.status = NOT_STARTED
-		case COMPLETED:
-			o.status = COMPLETED
+func WithStatus(value string) OptionsFunc {
+	status_value := strings.ToLower(strings.TrimSpace(value))
+	return func(o *Options) {
+		switch status_value {
+		case STATUS_STARTED:
+			o.Status = &ProgressStatus{
+				StatusValue: STATUS_STARTED,
+			}
+		case STATUS_NOT_STARTED:
+			o.Status = &ProgressStatus{
+				StatusValue: STATUS_NOT_STARTED,
+			}
+		case STATUS_COMPLETED:
+			o.Status = &ProgressStatus{
+				StatusValue: STATUS_COMPLETED,
+			}
 		default:
-			o.status = ""
+			// nothing
+		}
+	}
+}
+
+func WithIgnore(value string) OptionsFunc {
+	ignore_value := strings.ToLower(strings.TrimSpace(value))
+	return func(o *Options) {
+		switch ignore_value {
+		case "library":
+			o.IgnoreInLibrary = true
+		default:
+			// nothing
+		}
+	}
+}
+
+func WithSearch(value string) OptionsFunc {
+	search_value := strings.ToLower(strings.TrimSpace(value))
+	return func(o *Options) {
+		if search_value == "" {
+			return
+		}
+
+		o.Search = &Search{
+			SearchValue: value,
+		}
+	}
+}
+
+func WithSort(value string) OptionsFunc {
+	sort_value := strings.ToLower(strings.TrimSpace(value))
+	return func(o *Options) {
+		switch sort_value {
+		case SORT_ASC:
+			o.Sort = &Sort{
+				SortValue: SORT_ASC,
+			}
+		case SORT_DESC:
+			o.Sort = &Sort{
+				SortValue: SORT_DESC,
+			}
+		default:
+			// nothing
 		}
 	}
 }

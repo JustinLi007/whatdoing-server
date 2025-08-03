@@ -8,6 +8,11 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(s.middleware.Cors)
 
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Get("/contents/anime", s.handlerAnime.GetAllAnime)
+	})
+
 	r.Post("/users/login", s.handlerUsers.Login)
 	r.Post("/users/signup", s.handlerUsers.SignUp)
 	r.Group(func(r chi.Router) {
@@ -25,7 +30,6 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Post("/tokens/refresh", s.handlerJwt.RefreshJwt)
 	})
 
-	r.Get("/contents/anime", s.handlerAnime.GetAllAnime)
 	r.Get("/contents/anime/{contentId}", s.handlerAnime.GetAnime)
 	r.Group(func(r chi.Router) {
 		r.Use(s.middleware.RequireJwt)
