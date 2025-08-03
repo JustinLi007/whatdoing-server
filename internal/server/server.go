@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -88,7 +89,7 @@ func RoutineRemoveExpiredJwt(ctx context.Context, dbsJwt database.DbsJwt) {
 		case <-ticker.C:
 			log.Printf("info: Server: Routine: RoutineRemoveExpiredJwt: Execute")
 			err := dbsJwt.DeleteExpired()
-			if err != nil {
+			if err != nil && err != sql.ErrNoRows {
 				log.Printf("error: Server: Routine: RoutineRemoveExpiredJwt: DeleteExpired: %v", err)
 			}
 		case <-ctx.Done():

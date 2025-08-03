@@ -358,15 +358,22 @@ func UpdateRelAnimeUserLibraryProgress(tx *sql.Tx, reqUser *User, reqRelAnimeUse
 
 	query := `
 	WITH user_lib AS (
-		SELECT * FROM user_library WHERE user_id = $1
+		SELECT user_library.id FROM user_library WHERE user_id = $1
+	),
+	select_anime AS (
+		SELECT anime.* FROM anime
+		JOIN rel_anime_user_library ON anime.id = rel_anime_user_library.anime_id
+		WHERE rel_anime_user_library.id = $2
 	),
 	updated_rel AS (
 		UPDATE rel_anime_user_library ul
 		SET
 			updated_at = $3,
 			episode = $4
-		FROM user_lib
-		WHERE ul.id = $2 AND ul.user_library_id = user_lib.id
+		FROM user_lib, select_anime
+		WHERE ul.id = $2
+		AND ul.user_library_id = user_lib.id
+		AND $4 <= select_anime.episodes
 		RETURNING ul.id, ul.created_at, ul.updated_at, ul.status, ul.episode, ul.anime_id
 	)
 	SELECT
@@ -374,7 +381,7 @@ func UpdateRelAnimeUserLibraryProgress(tx *sql.Tx, reqUser *User, reqRelAnimeUse
 	anime.id, anime.created_at, anime.updated_at, anime.kind, anime.episodes, anime.description, anime.image_url,
 	anime_names.id, anime_names.created_at, anime_names.updated_at, anime_names.name
 	FROM updated_rel
-	JOIN anime ON updated_rel.anime_id = anime.id
+	JOIN select_anime anime ON updated_rel.anime_id = anime.id
 	JOIN anime_names ON anime.anime_names_id = anime_names.id
 	`
 

@@ -218,8 +218,8 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 		Id:      progressId,
 		Episode: *req.Episode,
 	}
-	dbProgress, err := h.dbsRelAnimeUserLibrary.UpdateProgress(user, reqRelAnimeUserLibrary)
-	if err != nil {
+	_, err = h.dbsRelAnimeUserLibrary.UpdateProgress(user, reqRelAnimeUserLibrary)
+	if err != nil && err != sql.ErrNoRows {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: UpdateProgress: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
@@ -227,9 +227,7 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"progress": dbProgress,
-	})
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
 }
 
 func (h *handlerUserLibraryAnime) SetStatus(w http.ResponseWriter, r *http.Request) {
@@ -295,8 +293,8 @@ func (h *handlerUserLibraryAnime) SetStatus(w http.ResponseWriter, r *http.Reque
 		Id:     progressId,
 		Status: *req.Status,
 	}
-	dbProgress, err := h.dbsRelAnimeUserLibrary.UpdateStatus(user, reqRelAnimeUserLibrary)
-	if err != nil {
+	_, err = h.dbsRelAnimeUserLibrary.UpdateStatus(user, reqRelAnimeUserLibrary)
+	if err != nil && err != sql.ErrNoRows {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: UpdateProgress: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
@@ -304,9 +302,7 @@ func (h *handlerUserLibraryAnime) SetStatus(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{
-		"progress": dbProgress,
-	})
+	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
 }
 
 func (h *handlerUserLibraryAnime) RemoveProgress(w http.ResponseWriter, r *http.Request) {
