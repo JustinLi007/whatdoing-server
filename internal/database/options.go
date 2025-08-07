@@ -120,7 +120,7 @@ func WithSearch(value string) OptionsFunc {
 }
 
 func WithSort(value string) OptionsFunc {
-	sort_value := strings.ToLower(strings.TrimSpace(value))
+	sort_value := strings.ToUpper(strings.TrimSpace(value))
 	return func(o *Options) {
 		switch sort_value {
 		case SORT_ASC:
