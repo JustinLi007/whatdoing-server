@@ -55,7 +55,46 @@ func InsertAnimeName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
 		&result.Name,
 	)
 	if err != nil {
-		log.Printf("error: DbsAnimeNames InsertAnimeName: Query: %v", err)
+		log.Printf("error: Dbs: AnimeNames: InsertAnimeName: Query: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func InsertAnimeNameIfNotExist(tx *sql.Tx, reqAnimeName *AnimeName) (*AnimeName, error) {
+	result := &AnimeName{}
+
+	query := `
+	WITH source(id, name) AS (
+		VALUES($1::uuid, $2)
+	), upsert AS (
+		MERGE INTO anime_names AS an
+		USING source AS src
+			ON LOWER(an.name) = LOWER(src.name)
+		WHEN MATCHED THEN
+			UPDATE SET id = an.id
+		WHEN NOT MATCHED THEN
+			INSERT(id, name)
+			VALUES(src.id, src.name)
+		RETURNING an.id, an.created_at, an.updated_at, an.name
+	)
+	SELECT n.id, n.created_at, n.updated_at, n.name
+	FROM upsert n
+	JOIN rel_anime_anime_names alt ON n.id = alt.anime_names_id
+	`
+
+	if err := tx.QueryRow(
+		query,
+		uuid.New(),
+		reqAnimeName.Name,
+	).Scan(
+		&result.Id,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.Name,
+	); err != nil {
+		log.Printf("error: Dbs: AnimeNames: InsertAnimeNameIfNotExist: Scan: %v", err)
 		return nil, err
 	}
 
@@ -66,7 +105,7 @@ func SelectAnimeNameByName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
 	result := &AnimeName{}
 
 	query := `SELECT * FROM anime_names
-	WHERE name = $1`
+	WHERE LOWER(name) = LOWER($1)`
 
 	err := tx.QueryRow(query, params.Name).Scan(
 		&result.Id,
@@ -75,7 +114,7 @@ func SelectAnimeNameByName(tx *sql.Tx, params *AnimeName) (*AnimeName, error) {
 		&result.Name,
 	)
 	if err != nil {
-		log.Printf("error: DbsAnimeNames SelectAnimeNameByName: Query: %v", err)
+		log.Printf("error: Dbs: AnimeNames: SelectAnimeNameByName: Query: %v", err)
 		return nil, err
 	}
 

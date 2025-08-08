@@ -41,115 +41,90 @@ func NewHandlerAnime(dbsAnime database.DbsAnime, dbsRelUsersAnime database.DbsRe
 }
 
 func (h *handlerAnime) NewAnime(w http.ResponseWriter, r *http.Request) {
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: Handler: Anime: NewAnime: GetUser: user is nil")
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: GetUser: WriteJson: %v", err)
+		}
+		return
+	}
+
 	type AnimeRequest struct {
-		AnimeId     *string `json:"anime_id"`
 		Name        *string `json:"name"`
-		ContentType *string `json:"content_type"`
 		Description *string `json:"description"`
 		ImageUrl    *string `json:"image_url"`
 		Episodes    *int    `json:"episodes"`
 	}
 
-	user := utils.GetUser(r)
-	if user == nil {
-		log.Printf("error: handler anime NewAnime GetUser: user is nil")
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
 	var req AnimeRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		log.Printf("error: handler anime NewAnime req decode: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		log.Printf("error: Handler: Anime: NewAnime: Decode: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: Decode: WriteJson: %v", err)
+		}
 		return
 	}
 
-	anime := &database.Anime{
-		AnimeName: database.AnimeName{},
+	if req.Name == nil {
+		log.Printf("error: Handler: Anime: NewAnime: missing name: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: missing name: WriteJson: %v", err)
+		}
+		return
 	}
-	var dbAnime *database.Anime
-
-	if req.ContentType == nil {
-		log.Printf("error: handler anime NewAnime: content type missing")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
-		})
+	if req.Episodes == nil {
+		log.Printf("error: Handler: Anime: NewAnime: missing episodes: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: missing episodes: WriteJson: %v", err)
+		}
+		return
+	}
+	if req.ImageUrl == nil {
+		log.Printf("error: Handler: Anime: NewAnime: missing image url: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: missing image url: WriteJson: %v", err)
+		}
+		return
+	}
+	if req.Description == nil {
+		log.Printf("error: Handler: Anime: NewAnime: missing description: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: missing description: WriteJson: %v", err)
+		}
 		return
 	}
 
-	// TODO: maybe have consts
-	if strings.TrimSpace(strings.ToLower(*req.ContentType)) != "anime" {
-		log.Printf("error: handler anime NewAnime: invalid content type")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
-		})
-		return
+	reqAnime := &database.Anime{
+		Episodes:    req.Episodes,
+		Description: req.Description,
+		ImageUrl:    req.ImageUrl,
+		AnimeName: database.AnimeName{
+			Name: *req.Name,
+		},
 	}
 
-	if req.AnimeId != nil {
-		err := uuid.Validate(*req.AnimeId)
-		if err != nil {
-			log.Printf("error: handler anime NewAnime: validate anime id")
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
-		animeId, err := uuid.Parse(*req.AnimeId)
-		if err != nil {
-			log.Printf("error: handler anime NewAnime: validate anime id")
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
-		anime.Id = animeId
-		dbAnime, err = h.dbsAnime.GetAnimeById(anime)
-		if err != nil {
-			log.Printf("error: handler anime NewAnime: GetAnimeById: %v", err)
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
-	} else {
-		if req.Name == nil {
-			log.Printf("error: handler anime NewAnime: missing name")
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
-
-		anime.Episodes = req.Episodes
-		anime.Description = req.Description
-		anime.ImageUrl = req.ImageUrl
-		anime.AnimeName.Name = *req.Name
-		dbAnime, err = h.dbsAnime.InsertAnime(anime)
-		if err != nil {
-			log.Printf("error: handler anime NewAnime: InsertAnime: %v", err)
-			utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-				"error": "internal server error",
-			})
-			return
-		}
-	}
-
-	relUserAnime := &database.RelUsersAnime{
-		UserId:  user.Id,
-		AnimeId: dbAnime.Id,
-	}
-	err = h.dbsRelUsersAnime.InsertRel(relUserAnime)
+	dbAnime, err := h.dbsAnime.InsertAnime(reqAnime)
 	if err != nil {
-		log.Printf("error: handler anime NewAnime: InsertRel: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		log.Printf("error: Handler: Anime: NewAnime: InsertAnime: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: Anime: NewAnime: InsertAnime: WriteJson: %v", err)
+		}
 		return
 	}
 

@@ -2,8 +2,8 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
+	_ "fmt"
+	_ "log"
 	"net/http"
 )
 
@@ -17,7 +17,7 @@ func WriteJson(w http.ResponseWriter, statusCode int, data Envelope) error {
 
 	js = append(js, '\n')
 
-	log.Printf("%s", fmt.Sprintf("%s", string(js)))
+	// log.Printf("%s", fmt.Sprintf("%s", string(js)))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)

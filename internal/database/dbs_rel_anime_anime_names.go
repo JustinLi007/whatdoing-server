@@ -48,16 +48,19 @@ func InsertRelAnimeAnimeNames(tx *sql.Tx, params *RelAnimeAnimeNames) error {
 		params.AnimeName.Id,
 	)
 	if err != nil {
-		log.Printf("error: DbsRelAnimeAnimeNames InsertRelAnimeAnimeNames: Query: %v", err)
+		log.Printf("error: Dbs: RelAnimeAnimeNames: InsertRelAnimeAnimeNames: Query: %v", err)
 		return err
 	}
 
 	n, err := queryResult.RowsAffected()
-	if err == nil {
-		if n == 0 {
-			log.Printf("error: DbsRelAnimeAnimeNames InsertRelAnimeAnimeNames: RowsAffected: 0")
-			return sql.ErrNoRows
-		}
+	if err != nil {
+		log.Printf("error: Dbs: RelAnimeAnimeNames: InsertRelAnimeAnimeNames: RowsAffected: %v", err)
+		return err
+	}
+
+	if n == 0 {
+		log.Printf("error: Dbs: RelAnimeAnimeNames: InsertRelAnimeAnimeNames: RowsAffected: %v", n)
+		return sql.ErrNoRows
 	}
 
 	return nil
