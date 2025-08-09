@@ -43,11 +43,10 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireJwt)
 		r.Use(s.middleware.RequireUser)
 
-		r.Post("/library/anime", s.handlerUserLibraryAnime.AddToLibrary)
-		r.Put("/library/anime/progress", s.handlerUserLibraryAnime.SetProgress)
-		r.Put("/library/anime/status", s.handlerUserLibraryAnime.SetStatus)
-		r.Delete("/library/anime/progress", s.handlerUserLibraryAnime.RemoveProgress)
-		r.Get("/library/anime/progress", s.handlerUserLibraryAnime.GetProgress)
+		r.Post("/library/anime", s.handlerProgressAnime.AddToLibrary)
+		r.Put("/progress/anime", s.handlerProgressAnime.SetProgress)
+		r.Delete("/library/anime/progress", s.handlerProgressAnime.RemoveProgress)
+		r.Get("/library/anime/progress", s.handlerProgressAnime.GetProgress)
 	})
 
 	return r

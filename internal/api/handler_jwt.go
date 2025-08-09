@@ -38,7 +38,7 @@ func (h *handlerJwt) RefreshJwt(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		log.Printf("error: Handler: Jwt: RefreshJwt: GetUser: user nil")
 		err := utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
+			"error": "bad request",
 		})
 		log.Printf("error: Handler: Jwt: RefreshJwt: GetUser: WriteJson: %v", err)
 		return

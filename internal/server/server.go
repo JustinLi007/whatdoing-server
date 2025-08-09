@@ -15,14 +15,14 @@ import (
 )
 
 type Server struct {
-	port                    int
-	db                      database.DbService
-	middleware              *middleware.Middleware
-	handlerUsers            api.HandlerUsers
-	handlerJwt              api.HandlerJwt
-	handlerAnime            api.HandlerAnime
-	handlerAnimeNames       api.HandlerAnimeNames
-	handlerUserLibraryAnime api.HandlerUserLibraryAnime
+	port                 int
+	db                   database.DbService
+	middleware           *middleware.Middleware
+	handlerUsers         api.HandlerUsers
+	handlerJwt           api.HandlerJwt
+	handlerAnime         api.HandlerAnime
+	handlerAnimeNames    api.HandlerAnimeNames
+	handlerProgressAnime api.HandlerProgressAnime
 }
 
 func NewServer(ctx context.Context) *http.Server {
@@ -44,27 +44,27 @@ func NewServer(ctx context.Context) *http.Server {
 	dbsAnimeNames := database.NewDbsAnimeNames(db)
 	dbsRelAnimeAnimeNames := database.NewDbsRelAnimeAnimeNames(db)
 	dbsUserLibrary := database.NewDbsUserLibrary(db)
-	dbsRelAnimeUserLibrary := database.NewDbsRelAnimeUserLibrary(db)
+	dbsProgressAnime := database.NewDbsProgressAnime(db)
 
 	// handlers
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 	handlerJwt := api.NewHandlerJwt(dbsJwt)
 	handlerAnime := api.NewHandlerAnime(dbsAnime, dbsRelUsersAnime)
 	handlerAnimeNames := api.NewHandlerAnimeNames(dbsAnimeNames, dbsRelAnimeAnimeNames)
-	handlerUserLibraryAnime := api.NewHandlerUserLibraryAnime(dbsUserLibrary, dbsRelAnimeUserLibrary)
+	handlerProgressAnime := api.NewHandlerProgressAnime(dbsUserLibrary, dbsProgressAnime)
 
 	// middleware
 	middleware := middleware.NewMiddleware(dbsUsers, dbsJwt)
 
 	newServer := Server{
-		port:                    8000,
-		db:                      db,
-		middleware:              middleware,
-		handlerUsers:            handlerUsers,
-		handlerJwt:              handlerJwt,
-		handlerAnime:            handlerAnime,
-		handlerAnimeNames:       handlerAnimeNames,
-		handlerUserLibraryAnime: handlerUserLibraryAnime,
+		port:                 8000,
+		db:                   db,
+		middleware:           middleware,
+		handlerUsers:         handlerUsers,
+		handlerJwt:           handlerJwt,
+		handlerAnime:         handlerAnime,
+		handlerAnimeNames:    handlerAnimeNames,
+		handlerProgressAnime: handlerProgressAnime,
 	}
 
 	mux := newServer.RegisterRoutes()

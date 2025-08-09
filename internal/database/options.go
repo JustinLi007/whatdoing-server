@@ -15,7 +15,7 @@ const (
 	SORT_DESC = "DESC"
 )
 
-type RaulId struct {
+type ProgressId struct {
 	Id uuid.UUID
 }
 
@@ -36,7 +36,7 @@ type Sort struct {
 }
 
 type Options struct {
-	RaulId          *RaulId
+	ProgressId      *ProgressId
 	AnimeId         *AnimeId
 	Status          *ProgressStatus
 	Search          *Search
@@ -46,7 +46,7 @@ type Options struct {
 
 func NewOptions() *Options {
 	options := &Options{
-		RaulId:          nil,
+		ProgressId:      nil,
 		AnimeId:         nil,
 		Status:          nil,
 		IgnoreInLibrary: false,
@@ -58,7 +58,7 @@ type OptionsFunc func(o *Options)
 
 func WithRelId(id uuid.UUID) OptionsFunc {
 	return func(o *Options) {
-		o.RaulId = &RaulId{
+		o.ProgressId = &ProgressId{
 			Id: id,
 		}
 	}

@@ -201,10 +201,6 @@ func (h *handlerAnime) GetAllAnime(w http.ResponseWriter, r *http.Request) {
 	opts = append(opts, database.WithSort(sort))
 	opts = append(opts, database.WithIgnore(ignore))
 
-	log.Printf("search: '%v'", search)
-	log.Printf("sort: '%v'", sort)
-	log.Printf("ignore: '%v'", ignore)
-
 	dbAnimeList, err := h.dbsAnime.GetAllAnime(user, opts...)
 	if err != nil {
 		log.Printf("error: Handler: Anime: GetAllAnime: GetAllAnime: %v", err)
@@ -256,7 +252,7 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	if req.ContentType == nil {
 		log.Printf("error: handler anime UpdateAnime: content type missing")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
+			"error": "bad request",
 		})
 		return
 	}
@@ -264,7 +260,7 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(strings.ToLower(*req.ContentType)) != "anime" {
 		log.Printf("error: handler anime UpdateAnime: invalid content type")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
+			"error": "bad request",
 		})
 		return
 	}
@@ -272,7 +268,7 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	if req.ContentId == nil {
 		log.Printf("error: handler anime UpdateAnime: missing content id")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
+			"error": "bad request",
 		})
 		return
 	}
@@ -280,7 +276,7 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	if req.ContentNamesId == nil {
 		log.Printf("error: handler anime UpdateAnime: missing content name id")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "status bad request",
+			"error": "bad request",
 		})
 		return
 	}

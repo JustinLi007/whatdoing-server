@@ -5,42 +5,40 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/JustinLi007/whatdoing-server/internal/database"
 	"github.com/JustinLi007/whatdoing-server/internal/utils"
 	"github.com/google/uuid"
 )
 
-type HandlerUserLibraryAnime interface {
+type HandlerProgressAnime interface {
 	AddToLibrary(w http.ResponseWriter, r *http.Request)
 	GetProgress(w http.ResponseWriter, r *http.Request)
 	SetProgress(w http.ResponseWriter, r *http.Request)
-	SetStatus(w http.ResponseWriter, r *http.Request)
 	RemoveProgress(w http.ResponseWriter, r *http.Request)
 }
 
-type handlerUserLibraryAnime struct {
-	dbsUserLibrary         database.DbsUserLibrary
-	dbsRelAnimeUserLibrary database.DbsRelAnimeUserLibrary
+type handlerProgressAnime struct {
+	dbsUserLibrary   database.DbsUserLibrary
+	dbsProgressAnime database.DbsProgressAnime
 }
 
-var handlerUserLibraryAnimeInstance *handlerUserLibraryAnime
+var handlerProgressAnimeInstance *handlerProgressAnime
 
-func NewHandlerUserLibraryAnime(dbsUserLibrary database.DbsUserLibrary, dbsRelAnimeUserLibrary database.DbsRelAnimeUserLibrary) HandlerUserLibraryAnime {
-	if handlerUserLibraryAnimeInstance != nil {
-		return handlerUserLibraryAnimeInstance
+func NewHandlerProgressAnime(dbsUserLibrary database.DbsUserLibrary, dbsRelAnimeUserLibrary database.DbsProgressAnime) HandlerProgressAnime {
+	if handlerProgressAnimeInstance != nil {
+		return handlerProgressAnimeInstance
 	}
-	newHandlerUserLibraryAnime := &handlerUserLibraryAnime{
-		dbsUserLibrary:         dbsUserLibrary,
-		dbsRelAnimeUserLibrary: dbsRelAnimeUserLibrary,
+	newHandlerProgressAnime := &handlerProgressAnime{
+		dbsUserLibrary:   dbsUserLibrary,
+		dbsProgressAnime: dbsRelAnimeUserLibrary,
 	}
-	handlerUserLibraryAnimeInstance = newHandlerUserLibraryAnime
+	handlerProgressAnimeInstance = newHandlerProgressAnime
 
-	return handlerUserLibraryAnimeInstance
+	return handlerProgressAnimeInstance
 }
 
-func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Request) {
+func (h *handlerProgressAnime) AddToLibrary(w http.ResponseWriter, r *http.Request) {
 	user := utils.GetUser(r)
 	if user == nil {
 		log.Printf("error: Handler: UserLibraryAnime: AddToLibrary: GetUser: nil")
@@ -93,7 +91,7 @@ func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Re
 	reqAnime := &database.Anime{
 		Id: animeId,
 	}
-	dbRelAnimeUserLibrary, err := h.dbsRelAnimeUserLibrary.AddToLibrary(user, reqAnime)
+	dbRelAnimeUserLibrary, err := h.dbsProgressAnime.AddToLibrary(user, reqAnime)
 	if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: AddToLibrary: AddToLibrary: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
@@ -107,7 +105,7 @@ func (h *handlerUserLibraryAnime) AddToLibrary(w http.ResponseWriter, r *http.Re
 	})
 }
 
-func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Request) {
+func (h *handlerProgressAnime) GetProgress(w http.ResponseWriter, r *http.Request) {
 	user := utils.GetUser(r)
 	if user == nil {
 		log.Printf("error: Handler: UserLibraryAnime: GetProgress: GetUser: nil")
@@ -119,14 +117,19 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 
 	opts := make([]database.OptionsFunc, 0)
 	queries := r.URL.Query()
-	relIdStr := queries.Get("progress_id")
-	animeIdStr := queries.Get("anime_id")
-	status := strings.ToLower(strings.TrimSpace(queries.Get("status")))
 
+	status := queries.Get("status")
+	search := queries.Get("search")
+	sort := queries.Get("sort")
 	opts = append(opts, database.WithStatus(status))
-	err := uuid.Validate(relIdStr)
+	opts = append(opts, database.WithSearch(search))
+	opts = append(opts, database.WithSort(sort))
+
+	progressIdStr := queries.Get("progress_id")
+	animeIdStr := queries.Get("anime_id")
+	err := uuid.Validate(progressIdStr)
 	if err == nil {
-		id, err := uuid.Parse(relIdStr)
+		id, err := uuid.Parse(progressIdStr)
 		if err == nil {
 			opts = append(opts, database.WithRelId(id))
 		}
@@ -139,9 +142,9 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	progress, err := h.dbsRelAnimeUserLibrary.GetProgress(user, opts...)
+	progress, err := h.dbsProgressAnime.GetProgress(user, opts...)
 	if err == sql.ErrNoRows {
-		progress = make([]*database.RelAnimeUserLibrary, 0)
+		progress = make([]*database.ProgressAnime, 0)
 	} else if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: GetProgress: GetProgress: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
@@ -155,13 +158,15 @@ func (h *handlerUserLibraryAnime) GetProgress(w http.ResponseWriter, r *http.Req
 	})
 }
 
-func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Request) {
+func (h *handlerProgressAnime) SetProgress(w http.ResponseWriter, r *http.Request) {
 	user := utils.GetUser(r)
 	if user == nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: GetUser: nil")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
 			"error": "bad request",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: GetUser: WriteJson: %v", err)
+		}
 		return
 	}
 
@@ -174,138 +179,75 @@ func (h *handlerUserLibraryAnime) SetProgress(w http.ResponseWriter, r *http.Req
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Decode: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: Decode: WriteJson: %v", err)
+		}
 		return
 	}
 
 	if req.ProgressId == nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing progress id")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
 			"error": "bad request",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing progress id: WriteJson: %v", err)
+		}
 		return
 	}
-
 	err = uuid.Validate(*req.ProgressId)
 	if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Validate: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: Validate: WriteJson: %v", err)
+		}
 		return
 	}
-
 	progressId, err := uuid.Parse(*req.ProgressId)
 	if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Parse: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: Parse: WriteJson: %v", err)
+		}
 		return
 	}
 
 	if req.Episode == nil {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing episode")
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing episode: WriteJson: %v", err)
+		}
 		return
 	}
 
-	reqRelAnimeUserLibrary := &database.RelAnimeUserLibrary{
+	reqRelAnimeUserLibrary := &database.ProgressAnime{
 		Id:      progressId,
 		Episode: *req.Episode,
 	}
-	_, err = h.dbsRelAnimeUserLibrary.UpdateProgress(user, reqRelAnimeUserLibrary)
+	_, err = h.dbsProgressAnime.UpdateProgress(user, reqRelAnimeUserLibrary)
 	if err != nil && err != sql.ErrNoRows {
 		log.Printf("error: Handler: UserLibraryAnime: SetProgress: UpdateProgress: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
-		})
+		}); err != nil {
+			log.Printf("error: Handler: UserLibraryAnime: SetProgress: UpdateProgress: WriteJson: %v", err)
+		}
 		return
 	}
 
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
+	if err := utils.WriteJson(w, http.StatusOK, utils.Envelope{}); err != nil {
+		log.Printf("error: Handler: UserLibraryAnime: SetProgress: payload: WriteJson: %v", err)
+	}
 }
 
-func (h *handlerUserLibraryAnime) SetStatus(w http.ResponseWriter, r *http.Request) {
-	user := utils.GetUser(r)
-	if user == nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: GetUser: nil")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "bad request",
-		})
-		return
-	}
-
-	type UpdateStatusRequest struct {
-		ProgressId *string `json:"progress_id"`
-		Status     *string `json:"status"`
-	}
-
-	var req UpdateStatusRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Decode: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	if req.ProgressId == nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing progress id")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "bad request",
-		})
-		return
-	}
-
-	err = uuid.Validate(*req.ProgressId)
-	if err != nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Validate: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	progressId, err := uuid.Parse(*req.ProgressId)
-	if err != nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: Parse: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	if req.Status == nil {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: missing status")
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	reqRelAnimeUserLibrary := &database.RelAnimeUserLibrary{
-		Id:     progressId,
-		Status: *req.Status,
-	}
-	_, err = h.dbsRelAnimeUserLibrary.UpdateStatus(user, reqRelAnimeUserLibrary)
-	if err != nil && err != sql.ErrNoRows {
-		log.Printf("error: Handler: UserLibraryAnime: SetProgress: UpdateProgress: %v", err)
-		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		})
-		return
-	}
-
-	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
-}
-
-func (h *handlerUserLibraryAnime) RemoveProgress(w http.ResponseWriter, r *http.Request) {
+func (h *handlerProgressAnime) RemoveProgress(w http.ResponseWriter, r *http.Request) {
 	user := utils.GetUser(r)
 	if user == nil {
 		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: GetUser: nil")
@@ -355,10 +297,10 @@ func (h *handlerUserLibraryAnime) RemoveProgress(w http.ResponseWriter, r *http.
 		return
 	}
 
-	reqRelAnimeUserLibrary := &database.RelAnimeUserLibrary{
+	reqRelAnimeUserLibrary := &database.ProgressAnime{
 		Id: progressId,
 	}
-	err = h.dbsRelAnimeUserLibrary.RemoveProgress(user, reqRelAnimeUserLibrary)
+	err = h.dbsProgressAnime.RemoveProgress(user, reqRelAnimeUserLibrary)
 	if err != nil {
 		log.Printf("error: Handler: UserLibraryAnime: RemoveProgress: RemoveProgress: %v", err)
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{

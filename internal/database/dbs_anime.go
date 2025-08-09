@@ -156,10 +156,6 @@ func (d *PgDbsAnime) GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, 
 		v(options)
 	}
 
-	// search - server
-	// sort - db
-	// ignore - db? what else will be included here in the future???
-
 	orderBy := SORT_ASC
 	if options.Sort != nil {
 		orderBy = options.Sort.SortValue
@@ -482,10 +478,10 @@ func SelectAnimeNotInLibrary(tx *sql.Tx, reqUser *User, orderBy string) ([]*Anim
 	FROM anime a
 	JOIN anime_names an ON a.anime_names_id = an.id
 	WHERE a.id NOT IN (
-		SELECT raul.anime_id
-		FROM rel_anime_user_library raul,
+		SELECT progress.anime_id
+		FROM progress_anime progress,
 		user_lib
-		WHERE raul.user_library_id = user_lib.id
+		WHERE progress.user_library_id = user_lib.id
 	)
 	ORDER BY an.name %s
 	`,
