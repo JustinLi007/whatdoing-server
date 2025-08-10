@@ -131,7 +131,7 @@ func (h *handlerProgressAnime) GetProgress(w http.ResponseWriter, r *http.Reques
 	if err == nil {
 		id, err := uuid.Parse(progressIdStr)
 		if err == nil {
-			opts = append(opts, database.WithRelId(id))
+			opts = append(opts, database.WithProgressId(id))
 		}
 	}
 	err = uuid.Validate(animeIdStr)

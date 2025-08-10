@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS progress_anime (
   anime_id UUID NOT NULL,
   CONSTRAINT fk_anime_id FOREIGN KEY (anime_id) REFERENCES anime (id) ON DELETE CASCADE,
   user_library_id UUID NOT NULL,
-  CONSTRAINT fk_user_library_id FOREIGN KEY (user_library_id) REFERENCES user_library (id) ON DELETE CASCADE
+  CONSTRAINT fk_user_library_id FOREIGN KEY (user_library_id) REFERENCES user_library (id) ON DELETE CASCADE,
+  UNIQUE(anime_id, user_library_id)
 );
 -- +goose StatementEnd
 

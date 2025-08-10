@@ -49,6 +49,8 @@ func NewOptions() *Options {
 		ProgressId:      nil,
 		AnimeId:         nil,
 		Status:          nil,
+		Search:          nil,
+		Sort:            nil,
 		IgnoreInLibrary: false,
 	}
 	return options
@@ -56,7 +58,7 @@ func NewOptions() *Options {
 
 type OptionsFunc func(o *Options)
 
-func WithRelId(id uuid.UUID) OptionsFunc {
+func WithProgressId(id uuid.UUID) OptionsFunc {
 	return func(o *Options) {
 		o.ProgressId = &ProgressId{
 			Id: id,

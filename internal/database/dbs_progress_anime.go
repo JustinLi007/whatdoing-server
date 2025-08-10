@@ -191,13 +191,13 @@ func (d *PgDbsProgressAnime) GetProgress(reqUser *User, opts ...OptionsFunc) ([]
 		var dbProgress []*ProgressAnime
 		switch options.Status.StatusValue {
 		case STATUS_NOT_STARTED:
-			dbProgress, err = SelectProgressNotStarted(tx, orderBy)
+			dbProgress, err = SelectProgressNotStarted(tx, reqUser, orderBy)
 			msg = fmt.Sprintf("error: DbsRelAnimeUserLibrary GetProgress: SelectProgressNotStarted: %v", err)
 		case STATUS_STARTED:
-			dbProgress, err = SelectProgressStarted(tx, orderBy)
+			dbProgress, err = SelectProgressStarted(tx, reqUser, orderBy)
 			msg = fmt.Sprintf("error: DbsRelAnimeUserLibrary GetProgress: SelectProgressStarted: %v", err)
 		case STATUS_COMPLETED:
-			dbProgress, err = SelectProgressCompleted(tx, orderBy)
+			dbProgress, err = SelectProgressCompleted(tx, reqUser, orderBy)
 			msg = fmt.Sprintf("error: DbsRelAnimeUserLibrary GetProgress: SelectProgressCompleted: %v", err)
 		}
 		if err != nil {
@@ -320,18 +320,17 @@ func InsertProgress(tx *sql.Tx, reqUser *User, reqAnime *Anime) (*ProgressAnime,
 
 	query := `WITH user_lib AS (
 		SELECT * FROM user_library WHERE user_id = $1
-	),
-	new_rel AS (
+	), insert_progress AS (
 		INSERT INTO progress_anime (id, anime_id, user_library_id)
 		SELECT $2, $3, user_lib.id
 		FROM user_lib
 		RETURNING id, created_at, updated_at, episode, anime_id
 	)
-	SELECT new_rel.id, new_rel.created_at, new_rel.updated_at, new_rel.episode,
+	SELECT insert_progress.id, insert_progress.created_at, insert_progress.updated_at, insert_progress.episode,
 	anime.id, anime.created_at, anime.updated_at, anime.kind, anime.episodes, anime.description, anime.image_url,
 	anime_names.id, anime_names.created_at, anime_names.updated_at, anime_names.name
-	FROM new_rel
-	JOIN anime ON anime.id = new_rel.anime_id
+	FROM insert_progress
+	JOIN anime ON anime.id = insert_progress.anime_id
 	JOIN anime_names ON anime.anime_names_id = anime_names.id`
 
 	err := tx.QueryRow(
@@ -488,18 +487,16 @@ func SelectProgressById(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *Progr
 	}
 
 	query := `
-	WITH user_lib AS (
-		SELECT * FROM user_library WHERE user_id = $1
-	)
 	SELECT
-	ul.id, ul.created_at, ul.updated_at, ul.episode,
+	p.id, p.created_at, p.updated_at, p.episode,
 	a.id, a.created_at, a.updated_at, a.kind, a.episodes, a.description, a.image_url,
 	an.id, an.created_at, an.updated_at, an.name
-	FROM progress_anime ul
-	JOIN anime a ON ul.anime_id = a.id
+	FROM progress_anime p
+	JOIN anime a ON p.anime_id = a.id
 	JOIN anime_names an ON a.anime_names_id = an.id
-	JOIN user_lib ON ul.user_library_id = user_lib.id
-	WHERE ul.id = $2
+	JOIN user_library ON p.user_library_id = user_library.id
+	WHERE user_library.user_id = $1
+	AND p.id = $2
 	`
 
 	err := tx.QueryRow(
@@ -531,7 +528,7 @@ func SelectProgressById(tx *sql.Tx, reqUser *User, reqRelAnimeUserLibrary *Progr
 	return result, nil
 }
 
-func SelectProgressStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, error) {
+func SelectProgressStarted(tx *sql.Tx, reqUser *User, orderBy string) ([]*ProgressAnime, error) {
 	result := make([]*ProgressAnime, 0)
 
 	query := fmt.Sprintf(`
@@ -542,14 +539,16 @@ func SelectProgressStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, error)
 		FROM progress_anime p
 		JOIN anime a ON p.anime_id = a.id
 		JOIN anime_names an ON a.anime_names_id = an.id
-		WHERE p.episode > 0
+		JOIN user_library ON p.user_library_id = user_library.id
+		WHERE user_library.user_id = $1
+		AND p.episode > 0
 		AND p.episode < a.episodes
 		ORDER BY an.name %s
 	`,
 		orderBy,
 	)
 
-	queryRows, err := tx.Query(query)
+	queryRows, err := tx.Query(query, reqUser.Id)
 	if err != nil {
 		log.Printf("error: Dbs: RelAnimeUserLibrary: SelectProgressStarted: Query: %v", err)
 		return nil, err
@@ -590,7 +589,7 @@ func SelectProgressStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, error)
 	return result, nil
 }
 
-func SelectProgressNotStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, error) {
+func SelectProgressNotStarted(tx *sql.Tx, reqUser *User, orderBy string) ([]*ProgressAnime, error) {
 	result := make([]*ProgressAnime, 0)
 
 	query := fmt.Sprintf(`
@@ -601,13 +600,15 @@ func SelectProgressNotStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, err
 		FROM progress_anime p
 		JOIN anime a ON p.anime_id = a.id
 		JOIN anime_names an ON a.anime_names_id = an.id
-		WHERE p.episode = 0
+		JOIN user_library ON p.user_library_id = user_library.id
+		WHERE user_library.user_id = $1
+		AND p.episode = 0
 		ORDER BY an.name %s
 	`,
 		orderBy,
 	)
 
-	queryRows, err := tx.Query(query)
+	queryRows, err := tx.Query(query, reqUser.Id)
 	if err != nil {
 		log.Printf("error: Dbs: RelAnimeUserLibrary: SelectProgressStarted: Query: %v", err)
 		return nil, err
@@ -648,7 +649,7 @@ func SelectProgressNotStarted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, err
 	return result, nil
 }
 
-func SelectProgressCompleted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, error) {
+func SelectProgressCompleted(tx *sql.Tx, reqUser *User, orderBy string) ([]*ProgressAnime, error) {
 	result := make([]*ProgressAnime, 0)
 
 	query := fmt.Sprintf(`
@@ -659,13 +660,15 @@ func SelectProgressCompleted(tx *sql.Tx, orderBy string) ([]*ProgressAnime, erro
 		FROM progress_anime p
 		JOIN anime a ON p.anime_id = a.id
 		JOIN anime_names an ON a.anime_names_id = an.id
-		WHERE p.episode = a.episodes
+		JOIN user_library ON p.user_library_id = user_library.id
+		WHERE user_library.user_id = $1
+		AND p.episode = a.episodes
 		ORDER BY an.name %s
 	`,
 		orderBy,
 	)
 
-	queryRows, err := tx.Query(query)
+	queryRows, err := tx.Query(query, reqUser.Id)
 	if err != nil {
 		log.Printf("error: Dbs: RelAnimeUserLibrary: SelectProgressStarted: Query: %v", err)
 		return nil, err
