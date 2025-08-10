@@ -17,6 +17,7 @@ type HandlerAnime interface {
 	GetAnime(w http.ResponseWriter, r *http.Request)
 	GetAllAnime(w http.ResponseWriter, r *http.Request)
 	UpdateAnime(w http.ResponseWriter, r *http.Request)
+	DeleteAnime(w http.ResponseWriter, r *http.Request)
 }
 
 type handlerAnime struct {
@@ -346,4 +347,80 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJson(w, http.StatusOK, utils.Envelope{})
+}
+
+func (h *handlerAnime) DeleteAnime(w http.ResponseWriter, r *http.Request) {
+	user := utils.GetUser(r)
+	if user == nil {
+		log.Printf("error: handler anime DeleteAnime GetUser: user is nil")
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime GetUser: WriteJson: %v", err)
+		}
+		return
+	}
+
+	type DeleteAnimeRequest struct {
+		AnimeId *string `json:"anime_id"`
+	}
+
+	var req DeleteAnimeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("error: handler anime DeleteAnime Decode: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime Decode: WriteJson: %v", err)
+		}
+		return
+	}
+
+	if req.AnimeId == nil {
+		log.Printf("error: handler anime DeleteAnime: missing anime id")
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime: missing anime id: WriteJson: %v", err)
+		}
+		return
+	}
+
+	if err := uuid.Validate(*req.AnimeId); err != nil {
+		log.Printf("error: handler anime DeleteAnime: Validate: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime: Validate: WriteJson: %v", err)
+		}
+		return
+	}
+
+	id, err := uuid.Parse(*req.AnimeId)
+	if err != nil {
+		log.Printf("error: handler anime DeleteAnime: Parse: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime: Parse: WriteJson: %v", err)
+		}
+		return
+	}
+
+	reqAnime := &database.Anime{
+		Id: id,
+	}
+	if err := h.dbsAnime.DeleteAnime(reqAnime); err != nil {
+		log.Printf("error: handler anime DeleteAnime: DeleteAnime: %v", err)
+		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
+			"error": "internal server error",
+		}); err != nil {
+			log.Printf("error: handler anime DeleteAnime: DeleteAnime: WriteJson: %v", err)
+		}
+		return
+	}
+
+	if err := utils.WriteJson(w, http.StatusOK, utils.Envelope{}); err != nil {
+		log.Printf("error: handler anime DeleteAnime: Payload: WriteJson: %v", err)
+	}
 }

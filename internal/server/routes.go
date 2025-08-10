@@ -33,6 +33,7 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 		r.Use(s.middleware.RequireUser)
 		r.Post("/anime", s.handlerAnime.NewAnime)
 		r.Put("/anime/{contentId}", s.handlerAnime.UpdateAnime)
+		r.Delete("/anime", s.handlerAnime.DeleteAnime)
 	})
 
 	r.Group(func(r chi.Router) {

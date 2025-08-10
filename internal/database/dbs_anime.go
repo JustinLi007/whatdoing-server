@@ -28,7 +28,8 @@ type DbsAnime interface {
 	InsertAnime(reqAnime *Anime) (*Anime, error)
 	GetAnimeById(reqAnime *Anime) (*Anime, error)
 	GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, error)
-	UpdateAnime(anime *Anime) error
+	UpdateAnime(reqAnime *Anime) error
+	DeleteAnime(reqAnime *Anime) error
 }
 
 type PgDbsAnime struct {
@@ -238,7 +239,7 @@ func (d *PgDbsAnime) GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, 
 	return animeList, nil
 }
 
-func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
+func (d *PgDbsAnime) UpdateAnime(reqAnime *Anime) error {
 	tx, err := d.db.Conn().Begin()
 	if err != nil {
 		log.Printf("error: DbsAnime UpdateAnime: Conn: %v", err)
@@ -254,13 +255,13 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 		}
 	}()
 
-	err = UpdateAnimeById(tx, anime)
+	err = UpdateAnimeById(tx, reqAnime)
 	if err != nil {
 		log.Printf("error: DbsAnime UpdateAnime: UpdateAnimeById: %v", err)
 		return err
 	}
 
-	for _, v := range anime.AlternativeNames {
+	for _, v := range reqAnime.AlternativeNames {
 		_, err := SelectAnimeNameByName(tx, v)
 		if err != nil {
 			dbAnimeName, err := InsertAnimeName(tx, v)
@@ -270,7 +271,7 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 			}
 
 			relReq := &RelAnimeAnimeNames{
-				AnimeId:   anime.Id,
+				AnimeId:   reqAnime.Id,
 				AnimeName: *dbAnimeName,
 			}
 			err = InsertRelAnimeAnimeNames(tx, relReq)
@@ -284,6 +285,37 @@ func (d *PgDbsAnime) UpdateAnime(anime *Anime) error {
 	err = tx.Commit()
 	if err != nil {
 		log.Printf("error: DbsAnime UpdateAnime: Commit: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (d *PgDbsAnime) DeleteAnime(reqAnime *Anime) error {
+	tx, err := d.db.Conn().Begin()
+	if err != nil {
+		log.Printf("error: Dbs: Anime: DeleteAnime: Conn: %v", err)
+		return err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			if err.Error() == "sql: transaction has already been committed or rolled back" {
+				return
+			}
+			log.Printf("error: Dbs: Anime: DeleteAnime: Rollback: %v", err)
+		}
+	}()
+
+	err = DeleteAnime(tx, reqAnime)
+	if err != nil {
+		log.Printf("error: Dbs: Anime: DeleteAnime: DeleteAnime: %v", err)
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("error: Dbs: Anime: DeleteAnime: Commit: %v", err)
 		return err
 	}
 
@@ -525,4 +557,30 @@ func SelectAnimeNotInLibrary(tx *sql.Tx, reqUser *User, orderBy string) ([]*Anim
 	}
 
 	return result, nil
+}
+
+func DeleteAnime(tx *sql.Tx, reqAnime *Anime) error {
+	query := `
+	DELETE FROM anime
+	WHERE anime.id = $1
+	`
+
+	queryResult, err := tx.Exec(query)
+	if err != nil {
+		log.Printf("error: Dbs: Anime: DeleteAnime: Query: %v", err)
+		return err
+	}
+
+	n, err := queryResult.RowsAffected()
+	if err != nil {
+		log.Printf("error: Dbs: Anime: DeleteAnime: RowsAffected: %v", err)
+		return err
+	}
+
+	if n == 0 {
+		log.Printf("error: Dbs: Anime: DeleteAnime: RowsAffected: %v", n)
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
