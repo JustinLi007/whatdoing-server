@@ -228,7 +228,7 @@ func (d *PgDbsAnime) GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, 
 		editDistanceMatch := false
 		for _, v := range animeList {
 			kmpMatch = foundKmp(v, options.Search.SearchValue)
-			editDistanceMatch = foundEditDistance(v, options.Search.SearchValue, 5)
+			editDistanceMatch = foundEditDistance(v, options.Search.SearchValue, 2)
 			if kmpMatch || editDistanceMatch {
 				filteredAnimeList = append(filteredAnimeList, v)
 			}

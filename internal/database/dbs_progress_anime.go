@@ -271,7 +271,7 @@ func (d *PgDbsProgressAnime) GetProgress(reqUser *User, opts ...OptionsFunc) ([]
 
 		for _, v := range result {
 			kmpMatch = foundKmp(v.Anime, options.Search.SearchValue)
-			editDistanceMatch = foundEditDistance(v.Anime, options.Search.SearchValue, 5)
+			editDistanceMatch = foundEditDistance(v.Anime, options.Search.SearchValue, 2)
 			if kmpMatch || editDistanceMatch {
 				filteredProgressList = append(filteredProgressList, v)
 			}
