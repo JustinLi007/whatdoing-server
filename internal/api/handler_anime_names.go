@@ -10,12 +10,12 @@ type HandlerAnimeNames interface {
 
 type handlerAnimeNames struct {
 	dbsAnimeNames         database.DbsAnimeNames
-	dbsRelAnimeAnimeNames database.DbsRelAnimeAnimeNames
+	dbsRelAnimeAnimeNames database.DbsAnimeAltNames
 }
 
 var handlerAnimeNamesInstance *handlerAnimeNames
 
-func NewHandlerAnimeNames(dbsAnimeNames database.DbsAnimeNames, dbsRelAnimeAnimeNames database.DbsRelAnimeAnimeNames) HandlerAnimeNames {
+func NewHandlerAnimeNames(dbsAnimeNames database.DbsAnimeNames, dbsRelAnimeAnimeNames database.DbsAnimeAltNames) HandlerAnimeNames {
 	if handlerAnimeNamesInstance != nil {
 		return handlerAnimeNamesInstance
 	}

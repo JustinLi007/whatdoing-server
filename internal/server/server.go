@@ -21,7 +21,7 @@ type Server struct {
 	handlerUsers         api.HandlerUsers
 	handlerJwt           api.HandlerJwt
 	handlerAnime         api.HandlerAnime
-	handlerAnimeNames    api.HandlerAnimeNames
+	handlerAnimeAltNames api.HandlerAnimeAltNames
 	handlerProgressAnime api.HandlerProgressAnime
 }
 
@@ -41,8 +41,7 @@ func NewServer(ctx context.Context) *http.Server {
 	dbsJwt := database.NewDbsJwt(db)
 	dbsAnime := database.NewDbsAnime(db)
 	dbsRelUsersAnime := database.NewDbsUsersAnime(db)
-	dbsAnimeNames := database.NewDbsAnimeNames(db)
-	dbsRelAnimeAnimeNames := database.NewDbsRelAnimeAnimeNames(db)
+	dbsAnimeAltNames := database.NewDbsAnimeAltNames(db)
 	dbsUserLibrary := database.NewDbsUserLibrary(db)
 	dbsProgressAnime := database.NewDbsProgressAnime(db)
 
@@ -50,7 +49,7 @@ func NewServer(ctx context.Context) *http.Server {
 	handlerUsers := api.NewHandlerUsers(dbsUsers, dbsJwt)
 	handlerJwt := api.NewHandlerJwt(dbsJwt)
 	handlerAnime := api.NewHandlerAnime(dbsAnime, dbsRelUsersAnime)
-	handlerAnimeNames := api.NewHandlerAnimeNames(dbsAnimeNames, dbsRelAnimeAnimeNames)
+	handlerAnimeAltNames := api.NewHandlerAnimeAltNames(dbsAnimeAltNames)
 	handlerProgressAnime := api.NewHandlerProgressAnime(dbsUserLibrary, dbsProgressAnime)
 
 	// middleware
@@ -63,7 +62,7 @@ func NewServer(ctx context.Context) *http.Server {
 		handlerUsers:         handlerUsers,
 		handlerJwt:           handlerJwt,
 		handlerAnime:         handlerAnime,
-		handlerAnimeNames:    handlerAnimeNames,
+		handlerAnimeAltNames: handlerAnimeAltNames,
 		handlerProgressAnime: handlerProgressAnime,
 	}
 

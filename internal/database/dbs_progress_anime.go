@@ -69,7 +69,7 @@ func (d *PgDbsProgressAnime) AddToLibrary(reqUser *User, reqAnime *Anime) (*Prog
 	}
 
 	temp := []*Anime{dbRelAnimeUserLibrary.Anime}
-	allNames, err := SelectAnimeNames(tx, temp)
+	allNames, err := SelectAnimeAltNames(tx, temp)
 	if err != nil {
 		log.Printf("error: DbsRelAnimeUserLibrary AddToLibrary: SelectAnimeNames: %v", err)
 		return nil, err
@@ -114,7 +114,7 @@ func (d *PgDbsProgressAnime) UpdateProgress(reqUser *User, reqRelAnimeUserLibrar
 	}
 
 	temp := []*Anime{dbRelAnimeUserLibrary.Anime}
-	allNames, err := SelectAnimeNames(tx, temp)
+	allNames, err := SelectAnimeAltNames(tx, temp)
 	if err != nil {
 		log.Printf("error: DbsRelAnimeUserLibrary UpdateProgress: SelectAnimeNames: %v", err)
 		return nil, err
@@ -211,14 +211,14 @@ func (d *PgDbsProgressAnime) GetProgress(reqUser *User, opts ...OptionsFunc) ([]
 		return nil, errors.New(msg)
 	}
 
-	allNames := make([]*RelAnimeAnimeNames, 0)
+	allNames := make([]*AnimeAltName, 0)
 	if len(result) > 0 {
 		tempAnime := make([]*Anime, 0)
 		for _, v := range result {
 			tempAnime = append(tempAnime, v.Anime)
 		}
 
-		allNames, err = SelectAnimeNames(tx, tempAnime)
+		allNames, err = SelectAnimeAltNames(tx, tempAnime)
 		if err != nil {
 			log.Printf("error: DbsRelAnimeUserLibrary GetProgress: SelectAnimeNames: %v", err)
 			return nil, err

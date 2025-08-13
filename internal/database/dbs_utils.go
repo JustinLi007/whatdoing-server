@@ -4,7 +4,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func buildNamesMap(allNames []*RelAnimeAnimeNames) map[uuid.UUID][]*AnimeName {
+func buildNamesMap(allNames []*AnimeAltName) map[uuid.UUID][]*AnimeName {
 	namesMap := make(map[uuid.UUID][]*AnimeName)
 
 	for _, v := range allNames {

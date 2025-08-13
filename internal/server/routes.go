@@ -39,6 +39,13 @@ func (s *Server) RegisterRoutes() *chi.Mux {
 	r.Group(func(r chi.Router) {
 		r.Use(s.middleware.RequireJwt)
 		r.Use(s.middleware.RequireUser)
+		r.Post("/altname/anime", s.handlerAnimeAltNames.AddAltName)
+		r.Delete("/altname/anime", s.handlerAnimeAltNames.DeleteAltNames)
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(s.middleware.RequireJwt)
+		r.Use(s.middleware.RequireUser)
 		r.Post("/progress/anime", s.handlerProgressAnime.AddToLibrary)
 		r.Put("/progress/anime", s.handlerProgressAnime.SetProgress)
 		r.Delete("/progress/anime", s.handlerProgressAnime.RemoveProgress)

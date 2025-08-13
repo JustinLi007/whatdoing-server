@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS rel_anime_anime_names (
   FOREIGN KEY (anime_names_id)
   REFERENCES anime_names (id)
   ON DELETE CASCADE
+  -- TODO: UNIQUE(anime_id, anime_names_id)
 );
 -- +goose StatementEnd
 

@@ -113,7 +113,7 @@ func (d *PgDbsAnime) GetAnimeById(reqAnime *Anime) (*Anime, error) {
 	}
 
 	temp := []*Anime{dbAnime}
-	allNames, err := SelectAnimeNames(tx, temp)
+	allNames, err := SelectAnimeAltNames(tx, temp)
 	if err != nil {
 		log.Printf("error: DbsAnime GetAnimeById: SelectAllNamesByAnimeId: %v", err)
 		return nil, err
@@ -178,7 +178,7 @@ func (d *PgDbsAnime) GetAllAnime(reqUser *User, opts ...OptionsFunc) ([]*Anime, 
 		return nil, err
 	}
 
-	allNames, err := SelectAnimeNames(tx, animeList)
+	allNames, err := SelectAnimeAltNames(tx, animeList)
 	if err != nil {
 		log.Printf("error: Dbs: Anime: GetAllAnime: SelectAnimeNames: %v", err)
 		return nil, err
@@ -246,8 +246,7 @@ func (d *PgDbsAnime) UpdateAnime(reqAnime *Anime) error {
 		return err
 	}
 	defer func() {
-		err := tx.Rollback()
-		if err != nil {
+		if err := tx.Rollback(); err != nil {
 			if err.Error() == "sql: transaction has already been committed or rolled back" {
 				return
 			}
@@ -255,35 +254,12 @@ func (d *PgDbsAnime) UpdateAnime(reqAnime *Anime) error {
 		}
 	}()
 
-	err = UpdateAnimeById(tx, reqAnime)
-	if err != nil {
+	if err := UpdateAnimeById(tx, reqAnime); err != nil {
 		log.Printf("error: DbsAnime UpdateAnime: UpdateAnimeById: %v", err)
 		return err
 	}
 
-	for _, v := range reqAnime.AlternativeNames {
-		_, err := SelectAnimeNameByName(tx, v)
-		if err != nil {
-			dbAnimeName, err := InsertAnimeName(tx, v)
-			if err != nil {
-				log.Printf("error: DbsAnime UpdateAnime: InsertAnimeName: %v", err)
-				return err
-			}
-
-			relReq := &RelAnimeAnimeNames{
-				AnimeId:   reqAnime.Id,
-				AnimeName: *dbAnimeName,
-			}
-			err = InsertRelAnimeAnimeNames(tx, relReq)
-			if err != nil {
-				log.Printf("error: DbsAnime UpdateAnime: InsertRelAnimeAnimeNames: %v", err)
-				return err
-			}
-		}
-	}
-
-	err = tx.Commit()
-	if err != nil {
+	if err := tx.Commit(); err != nil {
 		log.Printf("error: DbsAnime UpdateAnime: Commit: %v", err)
 		return err
 	}
@@ -477,7 +453,7 @@ func UpdateAnimeById(tx *sql.Tx, params *Anime) error {
 	queryResult, err := tx.Exec(
 		query,
 		params.Id,
-		params.UpdatedAt,
+		time.Now(),
 		params.Episodes,
 		params.Description,
 		params.ImageUrl,
@@ -565,7 +541,7 @@ func DeleteAnime(tx *sql.Tx, reqAnime *Anime) error {
 	WHERE anime.id = $1
 	`
 
-	queryResult, err := tx.Exec(query)
+	queryResult, err := tx.Exec(query, reqAnime.Id)
 	if err != nil {
 		log.Printf("error: Dbs: Anime: DeleteAnime: Query: %v", err)
 		return err

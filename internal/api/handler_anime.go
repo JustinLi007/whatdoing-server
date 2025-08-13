@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/JustinLi007/whatdoing-server/internal/database"
 	"github.com/JustinLi007/whatdoing-server/internal/utils"
@@ -222,13 +220,11 @@ func (h *handlerAnime) GetAllAnime(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 	type AnimeRequest struct {
-		ContentId        *string  `json:"content_id"`
-		ContentNamesId   *string  `json:"content_names_id"`
-		ContentType      *string  `json:"content_type"`
-		Description      *string  `json:"description"`
-		ImageUrl         *string  `json:"image_url"`
-		Episodes         *int     `json:"episodes"`
-		AlternativeNames []string `json:"alternative_names"`
+		AnimeId      *string `json:"anime_id"`
+		AnimeNamesId *string `json:"anime_names_id"`
+		Description  *string `json:"description"`
+		ImageUrl     *string `json:"image_url"`
+		Episodes     *int    `json:"episodes"`
 	}
 
 	user := utils.GetUser(r)
@@ -250,66 +246,50 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ContentType == nil {
-		log.Printf("error: handler anime UpdateAnime: content type missing")
+	if req.AnimeId == nil {
+		log.Printf("error: handler anime UpdateAnime: missing anime id")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
 			"error": "bad request",
 		})
 		return
 	}
 
-	if strings.TrimSpace(strings.ToLower(*req.ContentType)) != "anime" {
-		log.Printf("error: handler anime UpdateAnime: invalid content type")
+	if req.AnimeNamesId == nil {
+		log.Printf("error: handler anime UpdateAnime: missing anime name id")
 		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
 			"error": "bad request",
 		})
 		return
 	}
 
-	if req.ContentId == nil {
-		log.Printf("error: handler anime UpdateAnime: missing content id")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "bad request",
-		})
-		return
-	}
-
-	if req.ContentNamesId == nil {
-		log.Printf("error: handler anime UpdateAnime: missing content name id")
-		utils.WriteJson(w, http.StatusBadRequest, utils.Envelope{
-			"error": "bad request",
-		})
-		return
-	}
-
-	err = uuid.Validate(*req.ContentId)
+	err = uuid.Validate(*req.AnimeId)
 	if err != nil {
-		log.Printf("error: handler anime UpdateAnime: validate content id")
+		log.Printf("error: handler anime UpdateAnime: validate anime id")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
 		return
 	}
-	animeId, err := uuid.Parse(*req.ContentId)
+	animeId, err := uuid.Parse(*req.AnimeId)
 	if err != nil {
-		log.Printf("error: handler anime UpdateAnime: parse content id")
+		log.Printf("error: handler anime UpdateAnime: parse anime id")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
 		return
 	}
 
-	err = uuid.Validate(*req.ContentNamesId)
+	err = uuid.Validate(*req.AnimeNamesId)
 	if err != nil {
-		log.Printf("error: handler anime UpdateAnime: validate content name id")
+		log.Printf("error: handler anime UpdateAnime: validate anime name id")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
 		return
 	}
-	animeNamesId, err := uuid.Parse(*req.ContentNamesId)
+	animeNamesId, err := uuid.Parse(*req.AnimeNamesId)
 	if err != nil {
-		log.Printf("error: handler anime UpdateAnime: parse content name id")
+		log.Printf("error: handler anime UpdateAnime: parse anime name id")
 		utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
 			"error": "internal server error",
 		})
@@ -318,23 +298,12 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 
 	anime := &database.Anime{
 		Id:          animeId,
-		UpdatedAt:   time.Now(),
 		Episodes:    req.Episodes,
 		Description: req.Description,
 		ImageUrl:    req.ImageUrl,
 		AnimeName: database.AnimeName{
 			Id: animeNamesId,
 		},
-		AlternativeNames: make([]*database.AnimeName, 0),
-	}
-
-	for _, v := range req.AlternativeNames {
-		if strings.TrimSpace(v) == "" {
-			continue
-		}
-		anime.AlternativeNames = append(anime.AlternativeNames, &database.AnimeName{
-			Name: v,
-		})
 	}
 
 	err = h.dbsAnime.UpdateAnime(anime)
@@ -350,17 +319,6 @@ func (h *handlerAnime) UpdateAnime(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlerAnime) DeleteAnime(w http.ResponseWriter, r *http.Request) {
-	user := utils.GetUser(r)
-	if user == nil {
-		log.Printf("error: handler anime DeleteAnime GetUser: user is nil")
-		if err := utils.WriteJson(w, http.StatusInternalServerError, utils.Envelope{
-			"error": "internal server error",
-		}); err != nil {
-			log.Printf("error: handler anime DeleteAnime GetUser: WriteJson: %v", err)
-		}
-		return
-	}
-
 	type DeleteAnimeRequest struct {
 		AnimeId *string `json:"anime_id"`
 	}
